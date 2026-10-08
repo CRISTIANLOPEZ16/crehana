@@ -23,7 +23,9 @@ to inspect. If you imported an earlier version of the collection, import the upd
 file and use its requests together, since each imported copy stores its own tokens.
 Login saves the complete token automatically; leave request authorization set to
 `{{owner_token}}`, `{{member_token}}`, or `{{outsider_token}}`. Missing or truncated
-tokens stop protected requests with an instruction to run the matching login request.
+tokens produce a failed **Complete login token available** test with an instruction
+to run the matching login request. Requests are still sent, so the API response remains
+visible; the collection never skips a request because a token is missing.
 For an expired token, rerun that login request; do not rerun **Health and fresh demo
 variables** unless starting a fresh walkthrough, because it resets the demo accounts
 and saved IDs. The deliberately invalid-token requests still run and expect 401.

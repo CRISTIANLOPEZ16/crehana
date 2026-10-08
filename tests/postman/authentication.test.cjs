@@ -33,10 +33,16 @@ function requestContext(auth, storedToken) {
 const ownerAuth = setupRequests.find(item => item.name === 'Current owner profile').request.auth;
 
 for (const token of ['', 'eyJ.header...', '{{owner_token}}']) {
-  test(`blocks an incomplete token (${token || 'empty'}) without exposing it`, () => {
+  test(`reports an incomplete token (${token || 'empty'}) without skipping the request`, () => {
     const context = requestContext(ownerAuth, token);
-    assert.throws(() => vm.runInNewContext(preRequest, context), /Run Login owner/);
-    assert.equal(context.wasSkipped(), true);
+    const failures = [];
+    context.pm.test = (name, callback) => {
+      try { callback(); } catch (error) { failures.push(error.message); }
+    };
+    assert.doesNotThrow(() => vm.runInNewContext(preRequest, context));
+    assert.equal(failures.length, 1);
+    assert.match(failures[0], /Run Login owner/);
+    assert.equal(context.wasSkipped(), false);
   });
 }
 

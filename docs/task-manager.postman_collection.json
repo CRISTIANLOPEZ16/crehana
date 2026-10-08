@@ -165,8 +165,7 @@
           "  var tokenSetting = requestAuth.bearer.find(function (setting) { return setting.key === 'token'; });",
           "  var roleMatch = tokenSetting && /^\\{\\{(owner|member|outsider)_token\\}\\}$/.exec(tokenSetting.value);",
           "  if (roleMatch && !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(collectionValues[roleMatch[1] + '_token'] || '')) {",
-          "    pm.execution.skipRequest();",
-          "    throw new Error('Missing or truncated token. Run Login ' + roleMatch[1] + ' in this collection, then send this request again. Run the setup folder first if accounts are not registered.');",
+          "    pm.test('Complete login token available', function () { throw new Error('Missing or truncated token. Run Login ' + roleMatch[1] + ' in this collection, then send this request again. Run the setup folder first if accounts are not registered.'); });",
           "  }",
           "}"
         ]
