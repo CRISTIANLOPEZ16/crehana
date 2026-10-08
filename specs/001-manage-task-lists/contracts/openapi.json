@@ -1,0 +1,1138 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Crehana Task Lists API",
+    "version": "1.0.0",
+    "description": "Planned public contract. Text normalization runs before length validation. All writes commit before success. See README.md for behavioral semantics beyond JSON Schema."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/task-lists": {
+      "post": {
+        "operationId": "createTaskList",
+        "summary": "Create a task list",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Create a task list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "Root-relative URI of the created resource.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskList"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listTaskLists",
+        "summary": "List task lists",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "List task lists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPage"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "At most once; integer syntax only, fractional values rejected."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "description": "At most once; integer syntax only."
+          }
+        ],
+        "description": "Order by created_at ASC then id ASC. total is counted before pagination, including beyond-end pages."
+      }
+    },
+    "/task-lists/{list_id}": {
+      "get": {
+        "operationId": "getTaskList",
+        "summary": "Retrieve a list without embedded tasks",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Retrieve a list without embedded tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateTaskList",
+        "summary": "Partially update a task list",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Partially update a task list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskList"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTaskList",
+        "summary": "Atomically cascade-delete a list and its tasks",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted; no response body."
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/task-lists/{list_id}/tasks": {
+      "post": {
+        "operationId": "createTask",
+        "summary": "Create a task within an existing list",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Create a task within an existing list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "Root-relative URI of the created resource.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTask"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "queryTasks",
+        "summary": "Query tasks and unfiltered completion in one snapshot",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Query tasks and unfiltered completion in one snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "in_progress",
+                "completed"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "At most once; integer syntax only, fractional values rejected."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            },
+            "description": "At most once; integer syntax only."
+          }
+        ],
+        "description": "Status and priority combine with AND before pagination. Order created_at ASC, id ASC. matched_tasks counts filtered tasks before pagination. Summary always covers all parent tasks; existing empty lists return 200, missing lists 404. All returned data shares a consistent snapshot."
+      }
+    },
+    "/task-lists/{list_id}/tasks/{task_id}": {
+      "get": {
+        "operationId": "getTask",
+        "summary": "Retrieve a correctly scoped task",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Retrieve a correctly scoped task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateTask",
+        "summary": "Partially update a task, including status-only transitions",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Partially update a task, including status-only transitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTask"
+              }
+            }
+          }
+        },
+        "description": "All nine status transitions are legal; pending may complete directly and completed may reopen. Commit before success. Supplied fields use serialized last-write-wins; omitted fields survive. Tasks cannot move lists."
+      },
+      "delete": {
+        "operationId": "deleteTask",
+        "summary": "Delete a correctly scoped task, keeping its list",
+        "responses": {
+          "422": {
+            "description": "Invalid structure/UUID/input/query. Validation precedes resource lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure; generic public message, no sensitive details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing or incorrectly scoped resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted; no response body."
+          }
+        },
+        "x-reject-unknown-query-parameters": true,
+        "x-reject-repeated-query-parameters": true,
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Process readiness smoke endpoint",
+        "servers": [
+          {
+            "url": "/"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Application process is serving requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        },
+        "description": "Infrastructure endpoint outside /api/v1; not a substitute for persistence workflow verification."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TaskList": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 100 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 100,
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 1000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 1000,
+            "maxLength": 1000,
+            "minLength": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "System-generated UTC RFC 3339 timestamp."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "System-generated UTC RFC 3339 timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "list_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 200 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 200,
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 2000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 2000,
+            "maxLength": 2000,
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "System-generated UTC RFC 3339 timestamp."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "System-generated UTC RFC 3339 timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "list_id",
+          "title",
+          "description",
+          "status",
+          "priority",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTaskList": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 100 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 100
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 1000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 1000,
+            "default": null
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTaskList": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 100 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 100
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 1000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 1000
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1,
+        "description": "Only supplied fields change. Null clears description; other explicit nulls fail. Unknown/immutable fields fail. Compare after row lock; unchanged values succeed without timestamp changes."
+      },
+      "CreateTask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 200 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 2000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 2000,
+            "default": null
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ],
+            "default": "pending"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "medium"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 200 Unicode code points. Required when creating; blank/null rejected. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trim surrounding Unicode whitespace before validating; maximum 2000 Unicode code points. Blank normalizes to null. Preserve internal whitespace and Unicode composition.",
+            "x-normalization": "unicode-strip-before-length",
+            "x-normalized-max-length": 2000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1,
+        "description": "Only supplied fields change. Null clears description; other explicit nulls fail. Unknown/immutable fields fail. Compare after row lock; unchanged values succeed without timestamp changes."
+      },
+      "CompletionSummary": {
+        "type": "object",
+        "properties": {
+          "total_tasks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_tasks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completion_percentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Unfiltered completed / total * 100 rounded half-up to two decimal places; 0 when empty. Numeric JSON, not a string."
+          }
+        },
+        "required": [
+          "total_tasks",
+          "completed_tasks",
+          "completion_percentage"
+        ],
+        "additionalProperties": false
+      },
+      "ListPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskList"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "TaskPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "matched_tasks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CompletionSummary"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "offset",
+          "matched_tasks",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "validation_error",
+              "resource_not_found",
+              "internal_error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "details"
+        ],
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
