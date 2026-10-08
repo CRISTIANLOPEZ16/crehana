@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import StringConstraints, field_validator, model_validator
 
@@ -18,6 +19,7 @@ class CreateTaskRequest(StrictSchema):
     ] = None
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
+    assignee_id: UUID | None = None
 
     @field_validator("description", mode="before")
     @classmethod
@@ -38,6 +40,14 @@ class UpdateTaskRequest(StrictSchema):
     ] = None
     status: TaskStatus | None = None
     priority: TaskPriority | None = None
+    assignee_id: UUID | None = None
+
+    @field_validator("title", "status", "priority", mode="before")
+    @classmethod
+    def reject_null_required_patch_fields(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("Cannot be null.")
+        return value
 
     @field_validator("description", mode="before")
     @classmethod
@@ -50,10 +60,4 @@ class UpdateTaskRequest(StrictSchema):
     def validate_patch(self) -> UpdateTaskRequest:
         if not self.model_fields_set:
             raise ValueError("PATCH body must contain at least one field.")
-        for field_name in ("title", "status", "priority"):
-            if (
-                field_name in self.model_fields_set
-                and getattr(self, field_name) is None
-            ):
-                raise ValueError(f"{field_name} cannot be null.")
         return self

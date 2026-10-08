@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from typing import cast
 
 import pytest
 from sqlalchemy import Engine, event, inspect, text
@@ -16,7 +17,13 @@ from task_manager.application.tasks.operations import (
     CreateTaskUseCase,
 )
 from task_manager.application.tasks.queries import GetTaskUseCase
+from task_manager.application.invitations import CreateInvitationUseCase
+from task_manager.application.commands import CreateInvitation
 from task_manager.infrastructure.persistence.database import create_unit_of_work_factory
+from task_manager.infrastructure.security.invitation_tokens import (
+    SecureInvitationTokenService,
+)
+from tests.fixtures.identities import TEST_OWNER_ID
 from tests.integration.concurrency_support import wait_for_database_lock
 
 pytestmark = pytest.mark.integration
@@ -27,22 +34,24 @@ def test_task_table_has_named_cascading_list_foreign_key(
 ) -> None:
     foreign_keys = inspect(postgres_engine).get_foreign_keys("tasks")
 
-    assert foreign_keys == [
-        {
-            "name": "fk_tasks_list_id_task_lists",
-            "constrained_columns": ["list_id"],
-            "referred_schema": None,
-            "referred_table": "task_lists",
-            "referred_columns": ["id"],
-            "options": {"ondelete": "CASCADE"},
-            "comment": None,
-        }
-    ]
+    list_foreign_key: dict[str, object] = cast(
+        dict[str, object],
+        next(
+            foreign_key
+            for foreign_key in foreign_keys
+            if foreign_key["constrained_columns"] == ["list_id"]
+        ),
+    )
+    assert list_foreign_key["name"] == "fk_tasks_list_id_task_lists"
+    assert list_foreign_key["referred_table"] == "task_lists"
+    assert list_foreign_key["options"] == {"ondelete": "CASCADE"}
 
 
 def test_parent_delete_serializes_with_task_creation(postgres_engine: Engine) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Parent"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Parent", TEST_OWNER_ID)
+    )
     connection = postgres_engine.connect()
     transaction = connection.begin()
     connection.execute(
@@ -53,7 +62,9 @@ def test_parent_delete_serializes_with_task_creation(postgres_engine: Engine) ->
 
     def create_child() -> None:
         worker_started.set()
-        CreateTaskUseCase(factory).execute(CreateTask(task_list.id, "Child"))
+        CreateTaskUseCase(factory).execute(
+            CreateTask(task_list.id, "Child"), TEST_OWNER_ID
+        )
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -78,8 +89,15 @@ def test_parent_delete_serializes_with_task_creation(postgres_engine: Engine) ->
 
 def test_cascade_delete_rolls_back_when_commit_fails(postgres_engine: Engine) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Parent"))
-    task = CreateTaskUseCase(factory).execute(CreateTask(task_list.id, "Child"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Parent", TEST_OWNER_ID)
+    )
+    task = CreateTaskUseCase(factory).execute(
+        CreateTask(task_list.id, "Child"), TEST_OWNER_ID
+    )
+    CreateInvitationUseCase(factory, SecureInvitationTokenService()).execute(
+        CreateInvitation(task_list.id, TEST_OWNER_ID, "cascade@example.com")
+    )
 
     def reject_commit(session: Session) -> None:
         raise RuntimeError("Injected pre-commit failure.")
@@ -87,11 +105,22 @@ def test_cascade_delete_rolls_back_when_commit_fails(postgres_engine: Engine) ->
     event.listen(Session, "before_commit", reject_commit)
     try:
         with pytest.raises(RuntimeError, match="Injected pre-commit failure"):
-            DeleteTaskListUseCase(factory).execute(task_list.id)
+            DeleteTaskListUseCase(factory).execute(task_list.id, TEST_OWNER_ID)
     finally:
         event.remove(Session, "before_commit", reject_commit)
 
-    assert GetTaskListUseCase(factory).execute(task_list.id).id == task_list.id
-    assert GetTaskUseCase(factory).execute(task_list.id, task.id).id == task.id
+    assert (
+        GetTaskListUseCase(factory).execute(task_list.id, TEST_OWNER_ID).id
+        == task_list.id
+    )
+    assert (
+        GetTaskUseCase(factory).execute(task_list.id, task.id, TEST_OWNER_ID).id
+        == task.id
+    )
     with postgres_engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM tasks")) == 1
+        assert connection.scalar(text("SELECT count(*) FROM invitations")) == 1
+
+    DeleteTaskListUseCase(factory).execute(task_list.id, TEST_OWNER_ID)
+    with postgres_engine.connect() as connection:
+        assert connection.scalar(text("SELECT count(*) FROM invitations")) == 0

@@ -34,6 +34,7 @@ class TaskListRecord(Base):
     )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    owner_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -46,6 +47,7 @@ class TaskListRecord(Base):
     def to_domain(self) -> TaskList:
         return TaskList(
             id=self.id,
+            owner_id=self.owner_id,
             name=self.name,
             description=self.description,
             created_at=self.created_at,

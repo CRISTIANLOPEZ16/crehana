@@ -11,6 +11,7 @@ from task_manager.infrastructure.http.schemas.common import StrictSchema
 
 class TaskListResponse(StrictSchema):
     id: UUID
+    owner_id: UUID
     name: str
     description: str | None
     created_at: datetime
@@ -51,6 +52,13 @@ class UpdateTaskListRequest(StrictSchema):
         StringConstraints(max_length=1000, strip_whitespace=True),
     ] = None
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_null_name(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("Cannot be null.")
+        return value
+
     @field_validator("description", mode="before")
     @classmethod
     def normalize_blank_description(cls, value: object) -> object:
@@ -62,6 +70,4 @@ class UpdateTaskListRequest(StrictSchema):
     def validate_patch(self) -> UpdateTaskListRequest:
         if not self.model_fields_set:
             raise ValueError("PATCH body must contain at least one field.")
-        if "name" in self.model_fields_set and self.name is None:
-            raise ValueError("name cannot be null.")
         return self

@@ -1,300 +1,539 @@
-/speckit.specify
+## 1. Scope and Decision Review
 
-Specify the next increment of the task-management API: resolve outstanding
-MVP defects, then add JWT authentication, task assignment, and simulated
-email invitations.
+Required capabilities:
+- Resolve the carried MVP defects.
+- Introduce users and list ownership.
+- Provide login and JWT authentication for business endpoints.
+- Enforce resource authorization.
+- Assign one responsible user to a task.
+- Simulate invitations by email without sending real emails.
+- Preserve existing data through explicit database migrations.
 
-Follow the current constitution and preserve existing MVP behavior unless
-an explicitly approved authentication or authorization decision changes it.
-CI/CD remains outside scope. Local quality checks remain required.
+Use the grilling skill before finalizing unresolved product decisions.
+Ask independent questions together, explain your recommendations, and wait
+for answers before resolving dependent decisions.
 
-Inspect the existing specification, implementation, and tests before
-drafting requirements. Separate confirmed requirements from proposals.
+The following are proposed defaults, not previously confirmed requirements:
+- Users register with a display name, email, and password.
+- Each list has exactly one owner and zero or more members.
+- The creator becomes the owner; ownership transfer is outside scope.
+- Store owner_id without a separate created_by_id because ownership cannot
+  transfer and historical creator tracking is not required.
+- Owners manage list metadata, deletion, invitations, and membership.
+- Owners and members can view a list and manage its tasks.
+- Owners and members can assign tasks to eligible participants.
+- An eligible assignee is the list owner or one of its members.
+- Assignment does not require acceptance.
+- Invitations grant membership in a specific list.
+- Invitations may target people who have not registered.
+- Acceptance requires an authenticated account matching the recipient email.
+- JWT access tokens expire after 30 minutes; refresh tokens are excluded.
+- Invitations expire after seven days.
+- Inaccessible resources return 404; insufficient permission within an
+  accessible list returns 403.
 
-## 1. Resolve Outstanding MVP Defects First
+Confirm or amend these defaults through structured review.
 
-Verify and specify corrections for these previously reproduced findings:
+Also resolve:
+- Password policy and email normalization.
+- Public routes and API documentation visibility.
+- Logout expectations.
+- Duplicate invitation, resend, revocation, and acceptance-retry behavior.
+- Whether membership removal is included; if so, its effect on assignments.
+- The explicit account that receives existing ownerless lists.
+- How an evaluator securely inspects simulated invitations.
 
-1. Pagination overflow
-- Very large nonnegative offsets currently produce HTTP 500.
-- Preserve the existing contract: offsets beyond the available results
-  return an empty page with accurate counts and completion summaries.
-- Cover both task-list and task collections.
-- Do not silently introduce a new maximum offset.
+Do not add account deletion, account deactivation, ownership transfer,
+password recovery, email verification, refresh tokens, external identity
+providers, custom roles, or real email delivery unless explicitly selected.
 
-2. Unsupported text
-- Embedded NUL characters currently reach PostgreSQL and produce HTTP 500.
-- Reject text that cannot be persisted with HTTP 422 and field-level details.
-- Apply the rule consistently to list names, task titles, and descriptions.
-- Preserve existing Unicode, whitespace, and length rules.
-- Rejected writes must leave data unchanged.
+## 2. Carried MVP Defects
 
-3. Incomplete OpenAPI documentation
-- Generated OpenAPI must expose limit and offset on both collections.
-- Task collections must also expose status and priority.
-- Document defaults, bounds, enum values, response schemas, and errors.
-- Preserve rejection of unknown and repeated query parameters.
-- Contract verification must check parameters and schemas, not only paths
-  and response status codes.
+Reproduce each finding against the current code before classifying it as
+still outstanding. Preserve evidence and define regression scenarios.
 
-4. Unhelpful validation details
-- Invalid fields must identify their full location, such as body.title.
-- Explain the validation failure without exposing sensitive input.
+### DEF-01: Pagination overflow
+
+Large nonnegative offsets currently produce HTTP 500 when PostgreSQL cannot
+represent the supplied value.
+
+Required behavior:
+- Offsets beyond the result set return an empty page.
+- Counts and completion summaries remain accurate.
+- Apply to task-list and task collections.
+- Preserve existing rejection of negative and noninteger offsets.
+- Do not silently introduce a maximum offset that changes the contract.
+
+### DEF-02: Unsupported text
+
+Embedded NUL characters currently pass validation and produce HTTP 500
+during persistence.
+
+Required behavior:
+- Reject text that cannot be persisted with HTTP 422.
+- Identify the affected field with a safe explanation.
+- Apply consistently to names, titles, and descriptions.
+- Preserve existing Unicode, trimming, and length rules.
+- Rejected creates and updates must not modify data.
+
+### DEF-03: OpenAPI contract gaps
+
+Generated OpenAPI must describe:
+- limit and offset for both collections.
+- status and priority filters for task queries.
+- Defaults, bounds, enums, request/response schemas, and expected errors.
+
+Preserve rejection of unknown and repeated query parameters.
+Verify parameter and schema parity, not only routes and response codes.
+
+### DEF-04: Validation field locations
+
+Invalid fields must identify their location, such as body.title, rather
+than reporting only body.
+
+- Provide a useful, safe reason.
 - Empty updates may use a body-level error.
-- Preserve the established error envelope and error codes.
+- Preserve the current error envelope.
+- Do not echo passwords, tokens, or other sensitive values.
 
-5. Typing consistency
+### DEF-05: Typing failures and consistency
+
 - Resolve the strict mypy errors previously found in
   tests/e2e/test_api_errors.py.
 - Review annotations against the current constitution.
-- Preserve strict typing; do not hide failures with broad Any usage,
-  suppressions, or weakened configuration.
-- Surface any conflict between accepted type-inference guidance and the
-  written constitution for explicit resolution.
+- Do not weaken checks or introduce broad Any/suppressions.
+- Surface any conflict between agreed inference guidance and the written
+  annotation requirements for explicit resolution.
 
-For each confirmed defect, define:
-- Reproduction.
-- Expected behavior.
-- Relevant acceptance criteria.
-- A regression check that fails before the correction and passes afterward.
+For each confirmed defect, include the reproduction, expected result,
+acceptance criteria, and a regression check.
 
-Keep implementation details in the subsequent plan and tasks.
+## 3. Database Model
 
-## 2. Bonus Feature Scope
+Define final attributes, constraints, relationships, and deletion behavior
+after the structured review. Use explicit Alembic migrations.
 
-Include:
-- Login and JWT authentication protecting business endpoints.
-- Resource authorization appropriate to the approved ownership model.
-- Assignment of one responsible user to a task.
-- Simulated email invitations, with no real email delivery.
+### User
 
-Preserve the current architectural boundaries, uv tooling, PostgreSQL,
-Docker execution, and local quality gates.
+Proposed attributes:
+- id: system-generated UUID; immutable.
+- display_name: required nonblank string, 1–100 characters after trimming.
+- email: required validated email address.
+- email_normalized: canonical comparison value, unique in the database,
+  if separate storage is needed by the agreed normalization policy.
+- password_hash: required; never exposed in responses.
+- created_at: immutable UTC timestamp.
+- updated_at: UTC timestamp.
 
-Do not add refresh tokens, password recovery, external identity providers,
-complex role hierarchies, real email infrastructure, or background workers
-without an explicitly agreed need.
+Rules:
+- Define email comparison and uniqueness precisely.
+- Use an established password-hashing library and a suitable password hash.
+- Never store plaintext passwords or reversibly encrypted passwords.
+- Do not silently truncate passwords.
+- Password hashes and credentials must not appear in ordinary logs.
+- Account update/deletion is outside scope unless selected.
 
-## 3. Structured Review Before Finalizing
+### TaskList
 
-Use the grilling skill to resolve product decisions with the user.
-Inspect repository facts yourself; ask the user about product choices.
-Ask independent questions together and wait for their answers before
-asking dependent questions.
+Preserve current fields and add:
+- owner_id: required UUID referencing users.id.
 
-Present these recommendations for discussion, not as approved requirements:
+Rules:
+- A new list is owned by the authenticated creator.
+- Clients cannot choose or change owner_id through create/PATCH requests.
+- The owner always has access.
+- Ownership transfer is excluded under the proposed model.
+- Do not duplicate the owner as a membership row.
+- Preserve existing list and task IDs during migration.
 
-- Access model: each list has one owner and zero or more members.
-- Ownership: the creator becomes the owner.
-- Permissions: owners manage list settings, deletion, invitations, and
-  membership; members may view the list and manage its tasks.
-- Assignment: only an active owner/member of the same list may be assigned.
-- Account onboarding: self-registration without email verification for
-  this assessment.
-- Invitations: invite an email address to a specific list.
-- Acceptance: an authenticated account with the matching email accepts
-  the invitation.
-- Sessions: short-lived JWT access tokens without refresh tokens for
-  the first bonus increment.
+### ListMembership
 
-Resolve at least:
-- Whether to adopt these ownership and permission rules.
-- Registration fields, password policy, and email comparison rules.
-- Token lifetime, logout expectations, and account deactivation behavior.
-- Who may assign or clear an assignee.
-- Whether assignees must accept assignments.
-- Whether invitations can target people without accounts.
-- Invitation expiry, duplicate pending invitations, revocation, and resend.
-- Membership removal and its effect on assigned tasks.
-- How existing shared MVP lists acquire an owner without data loss.
-- Whether inaccessible resources return 403 or conceal existence with 404.
-- Which endpoints remain public.
-- How the evaluator can inspect and demonstrate a simulated invitation.
+Proposed attributes:
+- list_id: UUID referencing task_lists.id.
+- user_id: UUID referencing users.id.
+- created_at: UTC timestamp.
 
-Do not finalize the specification until material decisions are resolved.
+Rules:
+- Unique membership per (list_id, user_id).
+- Membership grants the approved member permissions.
+- The owner relationship is the authoritative source of owner permissions.
+- Deleting a list removes its memberships.
+- Avoid a role column unless the approved model needs roles beyond the
+  owner relationship and ordinary membership.
 
-## 4. Entity Definitions
+### Task
 
-After the review, define precise attributes, types, defaults, mutability,
-validation, uniqueness, and relationships for the selected model.
+Preserve current fields and add:
+- assignee_id: nullable UUID referencing users.id; default null.
 
-Candidate entities:
+Rules:
+- At most one responsible user.
+- Assignee must be the parent-list owner or a member.
+- Task parent remains immutable.
+- Assignment changes update the task's updated_at.
+- Reassigning the same user or clearing an already-empty assignment is a no-op.
+- Assignment must not change task status or completion percentage.
+- Membership removal must not leave an ineligible assignee.
+- Enforce eligibility transactionally, including relevant concurrent changes.
 
-User:
-- System-generated immutable ID.
-- Display name.
-- Email and its agreed canonical comparison form.
-- Password hash, never returned through the API.
-- Account status if required by the approved lifecycle.
-- Created and updated timestamps.
+### Invitation
 
-TaskList ownership/membership:
-- Owner relationship.
-- User/list membership with duplicate membership prevention.
-- Membership permissions and lifecycle.
-- Migration behavior for existing lists.
+Proposed attributes:
+- id: system-generated immutable UUID.
+- list_id: UUID referencing task_lists.id.
+- invited_by_id: UUID referencing users.id.
+- recipient_email: validated recipient address in the agreed canonical form.
+- token_hash: verifier for a cryptographically random acceptance token.
+- status: pending, accepted, revoked, or expired.
+- created_at: UTC timestamp.
+- expires_at: UTC timestamp.
+- accepted_at: nullable UTC timestamp.
+- revoked_at: nullable UTC timestamp.
 
-Task assignment:
-- Nullable assignee user ID.
-- Default unassigned.
-- At most one responsible user per task.
-- Explicit rules for clearing assignment and removing membership.
-- Assignment must not affect completion percentage.
+Rules:
+- Define allowed state transitions and corresponding timestamps.
+- Expiration must take effect when evaluated, without requiring a background job.
+- Store the acceptance-token verifier rather than the raw token.
+- A token must not create multiple memberships.
+- Define duplicate pending invitation handling and uniqueness requirements.
+- Define behavior when the recipient is already an owner/member.
+- Deleting a list removes its invitations.
+- Resending, if approved, must explicitly define whether the previous token
+  becomes invalid.
 
-Invitation:
-- System-generated immutable ID.
-- Target list, inviter, and recipient email.
-- Status and relevant lifecycle timestamps.
-- Expiration if selected.
-- Secure acceptance credential if acceptance uses a token.
-- Store a verifier rather than the raw invitation credential.
+### Simulated Notification
 
-Simulated notification:
-- Define the minimum observable representation needed to prove that an
-  invitation would have been sent.
-- Specify recipient, invitation reference, and simulation outcome.
-- Reuse the invitation representation where sufficient; do not require
-  a separate table or subsystem without a concrete need.
+Use the smallest representation sufficient to demonstrate:
+- Recipient.
+- Subject and invitation context.
+- Invitation reference.
+- Simulated delivery status.
+- Simulation timestamp.
 
-## 5. Authentication and Authorization Use Cases
+Do not require a separate notification table if the approved invitation
+representation is sufficient.
 
-Specify registration if approved:
-- Validate and normalize input.
-- Enforce email uniqueness at the database boundary.
-- Hash the password using an established password-hashing library.
-- Persist the account atomically.
-- Return only public account attributes.
+Define a safe demonstration path. If the raw acceptance token is shown once
+to the authorized inviter for simulation, make that an explicit assessment
+decision. Never expose it through public endpoints, ordinary logs, or
+subsequent invitation collection responses.
 
-Specify login:
-- Validate credentials.
-- Return a generic authentication failure for incorrect credentials.
-- On success, issue an access token and document its type and expiration.
-- Never expose or log passwords or raw access tokens.
+## 4. Ownership and Authorization
 
-Specify authenticated requests:
+Produce an operation-by-role matrix covering unauthenticated callers,
+owners, members, and unrelated authenticated users.
+
+Recommended permissions:
+- Authenticated users can create lists.
+- Owners and members can retrieve accessible lists and their tasks.
+- List collection results include owned and joined lists without duplicates.
+- Only owners can update list metadata or delete a list.
+- Owners and members can create, update, complete, reopen, and delete tasks.
+- Owners and members can assign or clear responsible users.
+- Only owners can create, inspect, revoke, or resend invitations.
+- Only the matching recipient can accept an invitation.
+
+Specify:
+- Whether members may inspect other members and which user attributes
+  are exposed for choosing an assignee.
+- How clients discover eligible assignees without exposing a global
+  user directory.
+- Pagination totals must count only resources visible to the caller.
+- Every task operation must verify both list access and task membership.
+- Resource authorization belongs in application use cases, not only routes.
+- UUID knowledge must never grant access.
+- Error responses must follow the agreed 403/404 policy.
+
+## 5. Account and Authentication Use Cases
+
+### Register
+
+If self-registration is approved:
+1. Validate and normalize display name and email.
+2. Validate the password against the agreed policy.
+3. Enforce canonical email uniqueness, including concurrent registration.
+4. Hash the password.
+5. Persist the user atomically.
+6. Return only public account attributes.
+
+Define duplicate-email responses and sensitive-field exclusions.
+
+### Login
+
+1. Validate the request structure.
+2. Locate the account using the agreed email comparison.
+3. Verify its password hash.
+4. Return the same generic authentication failure for unknown accounts
+   and incorrect passwords.
+5. Issue a JWT access token on success.
+
+Define the response fields:
+- access_token.
+- token_type: bearer.
+- expires_in.
+
+Define the exact login media type. Prefer OAuth2-compatible form login
+if using FastAPI's OAuth2 password security integration; do not document
+JSON while implementing form fields, or vice versa.
+
+### Identify Current User
+
+Provide an authenticated operation returning the caller's public profile,
+without password hashes or token secrets.
+
+### Authenticate Requests
+
 - Read the Bearer token from the Authorization header.
-- Verify its signature using an explicitly allowed algorithm.
-- Validate expiration and required claims.
-- Resolve the account and enforce the approved account-status policy.
-- Check authorization for the requested resource and operation.
-- Scope collection results to resources the caller may access.
-- Preserve parent/task membership checks in nested routes.
+- Verify the signature with an explicitly configured allowed algorithm.
+- Validate required claims, expiration, subject, issuer, and audience
+  according to the selected token contract.
+- Resolve the referenced user.
+- Reject deleted or nonexistent identities.
+- Never choose the verification algorithm solely from an untrusted header.
+- Supply signing secrets through environment configuration.
+- Do not include sensitive account data in JWT claims.
 
-Use FastAPI Depends/Security for HTTP authentication integration.
-Keep JWT verification in infrastructure and resource authorization in
-application use cases. Avoid custom authentication decorators.
+Use FastAPI Depends/Security for HTTP authentication and OpenAPI integration.
+Use an infrastructure adapter for JWT operations and application use cases
+for resource authorization. Avoid custom authentication decorators.
 
-Specify HTTP 401 with WWW-Authenticate: Bearer for missing or invalid
-credentials. Define authorization failures according to the reviewed
-403/404 policy. Adapt the existing error envelope consistently.
+Missing, invalid, tampered, or expired credentials return HTTP 401 with
+WWW-Authenticate: Bearer and the established safe error envelope.
 
-Define validation/authentication/authorization precedence explicitly.
-Protect all business endpoints except the approved public routes.
+Define precedence:
+- Authentication before business-resource access.
+- Request validation and authorization must not reveal protected data.
+- Document how validation behaves when both credentials and input are invalid.
+
+Under the proposed stateless-token model, client-side logout discards the
+token but does not revoke an already-issued token. Confirm that limitation;
+do not claim immediate revocation without implementing it.
 
 ## 6. Task Assignment Use Cases
 
+### Assign or Replace Responsible User
+
+Proposed route behavior: extend task PATCH with assignee_id.
+
+Process:
+1. Authenticate the caller.
+2. Verify access and assignment permission for the parent list.
+3. Resolve the task within that list.
+4. Validate that the target user is an eligible participant.
+5. Persist assignment and updated_at atomically.
+6. Return the updated task.
+
+### Clear Assignment
+
+Accept assignee_id=null.
+Preserve every unrelated field.
+Clearing an already-unassigned task succeeds without timestamp changes.
+
 Define:
-- Assign a responsible user.
-- Replace the responsible user.
-- Clear the assignment.
-- Retrieve the current assignee in task representations.
+- Invalid UUIDs.
+- Missing users.
+- Existing users who are not list participants.
+- Unauthorized callers and incorrect parent lists.
+- Reassignment to the same user.
+- Concurrent task updates and membership changes.
+- Whether assignment during task creation is supported; confirm this choice.
+- Response representation of the assignee.
 
-Processing must verify:
-1. Authentication.
-2. The caller's permission for the task's parent list.
-3. The task's membership in that list.
-4. The target user's eligibility under the approved model.
-5. Atomic persistence of assignment and timestamps.
+Preserve existing partial-update and completion semantics.
+Do not add assignment notifications or assignee filtering unless approved.
 
-Specify:
-- Reassigning the same user as a no-op.
-- Missing, inactive, or ineligible assignees.
-- Cross-list and unauthorized assignment attempts.
-- Concurrent assignment/membership changes.
-- Preservation of unrelated task attributes.
-- Unchanged completion semantics.
+## 7. Invitation Use Cases
 
-Do not add assignee filtering unless explicitly selected during review.
+### Create Invitation
 
-## 7. Simulated Invitation Use Cases
+1. Authenticate the inviter.
+2. Verify permission for the target list.
+3. Validate and normalize recipient email.
+4. Apply existing-member and duplicate-invitation rules.
+5. Generate a secure random acceptance token.
+6. Store its verifier and invitation lifecycle attributes.
+7. Produce an observable simulated email outcome.
+8. Return only the approved invitation/simulation representation.
 
-Based on reviewed decisions, define:
-- Create an invitation.
-- Inspect its simulated notification.
-- Accept an invitation.
-- Revoke or resend only if included in the approved lifecycle.
+No real email must be sent.
 
-Invitation creation must:
-1. Authenticate and authorize the inviter.
-2. Validate and normalize the recipient email.
-3. Apply duplicate/member eligibility rules.
-4. Persist the invitation atomically.
-5. Record or expose a clear simulated delivery outcome.
+### Inspect Invitations and Simulation
 
-Acceptance must:
-- Validate the invitation credential and lifecycle state.
-- Verify the accepting account matches the recipient.
-- Create membership and consume the invitation atomically.
-- Prevent replay from creating duplicate memberships.
-- Follow explicitly defined retry behavior.
+- Restrict access to the approved role.
+- Return lifecycle and simulation information.
+- Exclude raw credentials and password hashes.
+- Define pagination if invitations are listed.
+- Do not expose other lists' invitations.
 
-No email may actually be sent.
-Do not use SMTP, an email provider, or external delivery credentials.
-Invitation credentials must not appear in ordinary logs or public responses.
-Provide an approved, clearly documented demonstration path accessible only
-to an authorized user or evaluator.
+### Accept Invitation
 
-## 8. Compatibility and Data Migration
+1. Authenticate the recipient.
+2. Validate the supplied acceptance credential.
+3. Resolve the invitation and target list.
+4. Verify pending state and expiration.
+5. Verify the authenticated account matches the recipient email.
+6. Add membership and mark acceptance in one transaction.
+7. Return the approved membership/list-access result.
 
-- Preserve existing lists, tasks, IDs, timestamps, and completion behavior.
-- Define ownership assignment for existing data before protecting resources.
-- Never grant all historical resources to the first account implicitly.
-- Specify foreign keys and uniqueness rules for new relationships.
-- Describe behavior during membership changes and deletions.
-- Avoid undocumented destructive migration or manual database repair.
+Define behavior for:
+- Invalid tokens.
+- Expired or revoked invitations.
+- Wrong recipient accounts.
+- Deleted lists.
+- Already-accepted invitations.
+- Existing membership.
+- Concurrent acceptance.
+- Acceptance concurrent with revocation or membership changes.
 
-## 9. Verification and Delivery Order
+Retries must not create duplicate memberships.
 
-Prioritize:
-1. Confirm and correct carried MVP defects.
-2. Introduce accounts, ownership/membership, and the agreed data migration.
-3. Add login, JWT verification, and resource authorization together.
-4. Add task assignment.
-5. Add simulated invitations and acceptance where approved.
-6. Complete documentation and local verification.
+### Revoke or Resend
 
-Require acceptance scenarios for:
-- Every carried-defect regression.
-- Valid/invalid login and duplicate registration.
+Include only if approved.
+Define permissions, state transitions, expiration changes, token replacement,
+and simulated delivery behavior.
+
+Do not add background workers, SMTP, external email providers, or delivery
+credentials for this assessment.
+
+## 8. Existing Data Migration
+
+Specify a safe transition from shared resources to owned resources.
+
+Required behavior:
+- Preserve existing lists, tasks, IDs, text, statuses, priorities, and timestamps.
+- Existing tasks start unassigned.
+- Assign historical lists only to an explicitly selected account.
+- Never automatically grant historical data to the first registered user.
+- If historical lists exist and no owner mapping is supplied, stop with a
+  clear actionable error.
+- Fresh installations with no historical lists require no ownership mapping.
+- Passwords for bootstrap accounts must not be hardcoded in migrations.
+
+Describe the migration stages:
+1. Introduce user and access-related schema.
+2. Add transitional ownership where required.
+3. Apply the explicitly approved historical ownership mapping.
+4. Verify there are no ownerless lists.
+5. Enforce required foreign keys, uniqueness, and non-null ownership.
+6. Enable protected access under the new model.
+
+The subsequent implementation plan must resolve how account creation and
+owner mapping interact with the existing one-shot migration service.
+Do not assume an HTTP registration endpoint is available before migrations
+complete.
+
+Specify repeatability, failure behavior, and recovery instructions without
+requiring a destructive database reset.
+
+## 9. API Contract
+
+Preserve /api/v1, UUID representation, UTC timestamps, pagination, and the
+existing error envelope.
+
+Define concrete routes and examples for:
+- Registration, if selected.
+- Login.
+- Current-user retrieval.
+- Accessible list collections and list creation.
+- Participant discovery for assignment.
+- Task assignment through creation/PATCH as approved.
+- Invitation creation and authorized inspection.
+- Invitation acceptance.
+- Revocation/resend or membership removal only if selected.
+
+For every endpoint document:
+- Authentication requirements.
+- Allowed roles.
+- Request fields, defaults, nullability, and validation.
+- Response attributes and sensitive-field exclusions.
+- Success status and relevant errors.
+- OpenAPI security requirements.
+
+Preserve existing CRUD behavior for authorized callers.
+Use HTTP 409 for state/uniqueness conflicts only where explicitly defined;
+distinguish these from 401, 403, 404, and 422.
+
+## 10. Acceptance and Verification
+
+Require Given/When/Then scenarios for:
+
+Carried defects:
+- Extremely large offsets.
+- Unsupported text on creation and update.
+- Field-specific validation errors.
+- Generated query documentation.
+- Strict typing failures.
+
+Authentication:
+- Successful registration/login.
+- Duplicate canonical emails, including concurrent requests.
+- Invalid passwords and missing fields.
 - Missing, malformed, expired, and tampered JWTs.
-- Tokens with disallowed algorithms or invalid required claims.
-- Cross-user access to lists, tasks, collections, and mutations.
-- Every approved owner/member permission.
-- Assignment, reassignment, clearing, and unauthorized assignment.
-- Invitation creation, acceptance, invalid credentials, replay, and all
-  approved expiry/revocation/duplicate behaviors.
-- Atomicity and integrity during relevant concurrent operations.
-- Preservation of existing MVP data and behavior.
-- Absence of passwords, hashes, or sensitive credentials from API responses
-  and ordinary logs.
+- Disallowed algorithms and invalid required claims.
+- Tokens identifying nonexistent users.
+- No credential/hash exposure.
 
-Apply the constitution's unit, integration, end-to-end, coverage, strict
-typing, linting, formatting, and Docker requirements locally.
-Do not introduce a CI/CD requirement.
+Authorization:
+- Every operation in the permission matrix.
+- List collection visibility and accurate visible-resource totals.
+- Cross-user list/task access.
+- Nested task/list membership.
+- Unauthorized invitation and assignment attempts.
 
-## 10. Specification Output
+Assignment:
+- Assign, replace, clear, and no-op.
+- Missing and ineligible users.
+- Preservation of unrelated concurrent updates.
+- No changes to completion percentage.
+- Membership-removal behavior if included.
+
+Invitations:
+- Simulated delivery with no external email.
+- Recipient matching.
+- Invalid, expired, revoked, and reused credentials.
+- Duplicate invitations and retries.
+- Atomic and concurrent acceptance.
+- List deletion and other approved lifecycle rules.
+
+Migration:
+- Fresh installation.
+- Existing populated database with explicit owner mapping.
+- Missing/invalid owner mapping.
+- Preservation of all historical resources.
+- Required ownership constraints after migration.
+
+Run unit, PostgreSQL integration, and real-API end-to-end checks according
+to the constitution. Preserve at least 75% application coverage and local
+Flake8, Black, strict mypy, dependency, Docker, and persistence checks.
+
+## 11. Delivery Order
+
+1. Confirm and resolve carried MVP defects.
+2. Finalize account/access decisions and migration behavior.
+3. Introduce users, ownership, and membership.
+4. Deliver login, JWT protection, and authorization together.
+5. Add responsible-user assignment.
+6. Add simulated invitations and approved acceptance/lifecycle operations.
+7. Verify compatibility, security behavior, documentation, and local gates.
+
+Do not expose ownership-dependent functionality without its authorization.
+Keep increments independently verifiable where dependencies allow.
+
+## 12. Required Specification Output
 
 Produce:
-- Explicit decisions and tradeoffs from the structured review.
+- Confirmed decisions and tradeoffs from the structured review.
 - Prioritized stories and dependencies.
-- Entity attribute tables.
-- An operation-by-role authorization matrix.
+- Attribute tables and entity relationships.
+- An operation-by-role permission matrix.
 - Numbered functional requirements.
-- Use-case preconditions, processing, postconditions, and failures.
-- API contracts with representative request/response examples.
-- Given/When/Then acceptance scenarios.
+- Preconditions, processing, postconditions, and failure outcomes.
+- API request/response examples.
 - Migration and compatibility requirements.
-- Measurable success criteria.
-- Clear exclusions and any unresolved questions.
+- Acceptance scenarios and measurable success criteria.
+- Explicit exclusions and unresolved questions.
 
-Create the specification only. Do not implement code.
+Distinguish mandatory bonus capabilities from supporting product choices.
+Do not treat proposed defaults as user approval.
+Create the specification only; do not implement code or alter the database.

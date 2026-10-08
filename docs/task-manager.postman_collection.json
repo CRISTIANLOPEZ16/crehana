@@ -1,0 +1,4069 @@
+{
+  "info": {
+    "_postman_id": "b0ae86d0-667a-4b3d-a46a-f86e698cb6d3",
+    "name": "Task Manager assessment — local Docker",
+    "description": "Run folders in order against the task-manager-manual Docker stack. The first request creates fresh demo emails and a local demo password. IDs and access tokens are saved as collection variables. The OpenAPI request checks the default hidden-docs state or parameter parity when docs are enabled. Migration and concurrency gates require the terminal commands in docs/MANUAL_TESTING.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "origin",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "owner_email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "outsider_email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "owner_email_upper",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "demo_password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "owner_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "outsider_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "owner_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "outsider_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "main_list_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "other_list_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pending_task_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "default_task_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_assigned_task_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "completed_task_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_invitation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "member_invitation_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "second_invitation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "old_invitation_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "new_invitation_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "list_updated_at",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "default_task_updated_at",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assignment_updated_at",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "revoked_at",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "summary_before_assignment",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "var collectionValues = pm.collectionVariables.toObject();",
+          "Object.keys(collectionValues).forEach(function (key) { pm.variables.set(key, collectionValues[key]); });",
+          "var requestAuth = pm.request.toJSON().auth;",
+          "if (requestAuth && requestAuth.type === 'bearer') {",
+          "  var tokenSetting = requestAuth.bearer.find(function (setting) { return setting.key === 'token'; });",
+          "  var roleMatch = tokenSetting && /^\\{\\{(owner|member|outsider)_token\\}\\}$/.exec(tokenSetting.value);",
+          "  if (roleMatch && !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(collectionValues[roleMatch[1] + '_token'] || '')) {",
+          "    pm.execution.skipRequest();",
+          "    throw new Error('Missing or truncated token. Run Login ' + roleMatch[1] + ' in this collection, then send this request again. Run the setup folder first if accounts are not registered.');",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Setup — accounts and login",
+      "description": "Run first. Health generates fresh demo credentials for every collection run; later requests save IDs and tokens automatically.",
+      "item": [
+        {
+          "name": "Health and fresh demo variables",
+          "request": {
+            "method": "GET",
+            "url": "{{origin}}/health",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var unique = String(Date.now()) + String(Math.floor(Math.random() * 100000));",
+                  "pm.collectionVariables.set('owner_email', 'owner.' + unique + '@example.com');",
+                  "pm.collectionVariables.set('member_email', 'member.' + unique + '@example.com');",
+                  "pm.collectionVariables.set('outsider_email', 'outsider.' + unique + '@example.com');",
+                  "pm.collectionVariables.set('owner_email_upper', ('owner.' + unique + '@example.com').toUpperCase());",
+                  "pm.collectionVariables.set('demo_password', 'LocalDemo-' + unique + '-passphrase');",
+                  "['owner_token','member_token','outsider_token','owner_id','member_id','outsider_id','main_list_id','other_list_id','pending_task_id','default_task_id','member_assigned_task_id','completed_task_id','member_invitation_id','member_invitation_token','second_invitation_id','old_invitation_token','new_invitation_token','list_updated_at','default_task_updated_at','assignment_updated_at','revoked_at','summary_before_assignment'].forEach(function (key) { pm.collectionVariables.set(key, ''); });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('healthy', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Register owner",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"display_name\":\"Owner\",\"email\":\"{{owner_email}}\",\"password\":\"{{demo_password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"owner_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('public profile', function () { var profile = pm.response.json(); pm.expect(profile).to.not.have.property('password_hash'); pm.expect(profile.email).to.eql(pm.collectionVariables.get('owner_email')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Register member",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"display_name\":\"Member\",\"email\":\"{{member_email}}\",\"password\":\"{{demo_password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"member_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('public profile', function () { var profile = pm.response.json(); pm.expect(profile).to.not.have.property('password_hash'); pm.expect(profile.email).to.eql(pm.collectionVariables.get('member_email')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Register outsider",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"display_name\":\"Outsider\",\"email\":\"{{outsider_email}}\",\"password\":\"{{demo_password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"outsider_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('public profile', function () { var profile = pm.response.json(); pm.expect(profile).to.not.have.property('password_hash'); pm.expect(profile.email).to.eql(pm.collectionVariables.get('outsider_email')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Duplicate canonical owner email",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"display_name\":\"Duplicate\",\"email\":\"{{owner_email_upper}}\",\"password\":\"{{demo_password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login owner",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{owner_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{demo_password}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"owner_token\", savedResponse.access_token);",
+                  "  pm.variables.set(\"owner_token\", savedResponse.access_token);",
+                  "  pm.test('Full owner token saved automatically', function () { pm.expect(pm.variables.get('owner_token')).to.eql(savedResponse.access_token); pm.expect(savedResponse.access_token).to.match(/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/); });",
+                  "}",
+                  "pm.test('30-minute Bearer token', function () { var login = pm.response.json(); pm.expect(login.token_type).to.eql('bearer'); pm.expect(login.expires_in).to.eql(1800); pm.expect(login.access_token).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login member",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{member_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{demo_password}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"member_token\", savedResponse.access_token);",
+                  "  pm.variables.set(\"member_token\", savedResponse.access_token);",
+                  "  pm.test('Full member token saved automatically', function () { pm.expect(pm.variables.get('member_token')).to.eql(savedResponse.access_token); pm.expect(savedResponse.access_token).to.match(/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/); });",
+                  "}",
+                  "pm.test('30-minute Bearer token', function () { var login = pm.response.json(); pm.expect(login.token_type).to.eql('bearer'); pm.expect(login.expires_in).to.eql(1800); pm.expect(login.access_token).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login outsider",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{outsider_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{demo_password}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"outsider_token\", savedResponse.access_token);",
+                  "  pm.variables.set(\"outsider_token\", savedResponse.access_token);",
+                  "  pm.test('Full outsider token saved automatically', function () { pm.expect(pm.variables.get('outsider_token')).to.eql(savedResponse.access_token); pm.expect(savedResponse.access_token).to.match(/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/); });",
+                  "}",
+                  "pm.test('30-minute Bearer token', function () { var login = pm.response.json(); pm.expect(login.token_type).to.eql('bearer'); pm.expect(login.expires_in).to.eql(1800); pm.expect(login.access_token).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Current owner profile",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('owner profile excludes hash', function () { var profile = pm.response.json(); pm.expect(profile.id).to.eql(pm.collectionVariables.get('owner_id')); pm.expect(profile).to.not.have.property('password_hash'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Missing token rejected",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Authentication header indicates bearer scheme', function () { pm.expect(pm.response.headers.get('WWW-Authenticate')).to.eql('Bearer'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Invalid token rejected",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid-token",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Wrong password rejected",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{owner_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "incorrect-password",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 Core — create and retrieve lists",
+      "description": "To verify persistence across API restart, run this folder, execute docker compose -p task-manager-manual restart api, then resend Retrieve main list.",
+      "item": [
+        {
+          "name": "Create main list",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"  Release work  \",\"description\":\"  Manual assessment  \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"main_list_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('normalized owned list and Location', function () { var list = pm.response.json(); pm.expect(list.name).to.eql('Release work'); pm.expect(list.description).to.eql('Manual assessment'); pm.expect(list.owner_id).to.eql(pm.collectionVariables.get('owner_id')); pm.expect(list.created_at).to.eql(list.updated_at); pm.expect(pm.response.headers.get('Location')).to.include(list.id); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Retrieve main list",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('same list without embedded tasks', function () { var list = pm.response.json(); pm.expect(list.id).to.eql(pm.collectionVariables.get('main_list_id')); pm.expect(list).to.not.have.property('tasks'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Core — list collection and updates",
+      "description": "Lists are paginated. PATCH changes only supplied fields; a no-op keeps updated_at. Final list deletion is in folder 09.",
+      "item": [
+        {
+          "name": "Page owner lists",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists?limit=1&offset=0",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('list page', function () { var page = pm.response.json(); pm.expect(page.limit).to.eql(1); pm.expect(page.offset).to.eql(0); pm.expect(page.total).to.be.at.least(1); pm.expect(page.items.length).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Rename and clear description",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Release work revised\",\"description\":null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"list_updated_at\", savedResponse.updated_at);",
+                  "}",
+                  "pm.test('description cleared', function () { var list = pm.response.json(); pm.expect(list.name).to.eql('Release work revised'); pm.expect(list.description).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Same-value list PATCH is a no-op",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Release work revised\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('timestamp unchanged', function () { pm.expect(pm.response.json().updated_at).to.eql(pm.collectionVariables.get('list_updated_at')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Empty list PATCH rejected",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Core — task CRUD and status",
+      "description": "Creates a default task, updates text/status, checks wrong parent, then deletes it. The second list stays empty for summary tests.",
+      "item": [
+        {
+          "name": "Create task with defaults",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"  Draft notes  \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"default_task_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('defaults and Location', function () { var task = pm.response.json(); pm.expect(task.title).to.eql('Draft notes'); pm.expect(task.status).to.eql('pending'); pm.expect(task.priority).to.eql('medium'); pm.expect(task.description).to.eql(null); pm.expect(task.assignee_id).to.eql(null); pm.expect(task.created_at).to.eql(task.updated_at); pm.expect(pm.response.headers.get('Location')).to.include(task.id); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Retrieve default task",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update title and description",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Draft release notes\",\"description\":\"  First draft  \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('trimmed task text', function () { var task = pm.response.json(); pm.expect(task.title).to.eql('Draft release notes'); pm.expect(task.description).to.eql('First draft'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Complete pending task directly",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"completed\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('completed', function () { pm.expect(pm.response.json().status).to.eql('completed'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reopen completed task",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"pending\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"default_task_updated_at\", savedResponse.updated_at);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Same status is a no-op",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"pending\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('timestamp unchanged', function () { pm.expect(pm.response.json().updated_at).to.eql(pm.collectionVariables.get('default_task_updated_at')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create second empty list",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Empty summary\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"other_list_id\", savedResponse.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Wrong parent cannot retrieve task",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{other_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete default task",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleted task missing",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{default_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Core — filters, pagination and completion",
+      "description": "Creates two completed/high, one pending/high and one in-progress/low task. Filters and pagination never change the whole-list summary.",
+      "item": [
+        {
+          "name": "Empty list has zero completion",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{other_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('empty summary', function () { var page = pm.response.json(); pm.expect(page.items).to.eql([]); pm.expect(page.matched_tasks).to.eql(0); pm.expect(page.summary.total_tasks).to.eql(0); pm.expect(page.summary.completion_percentage).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create completed/high A",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Complete A\",\"status\":\"completed\",\"priority\":\"high\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"completed_task_id\", savedResponse.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create completed/high B",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Complete B\",\"status\":\"completed\",\"priority\":\"high\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create pending/high",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Pending high\",\"status\":\"pending\",\"priority\":\"high\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"pending_task_id\", savedResponse.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create in-progress/low",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"In progress low\",\"status\":\"in_progress\",\"priority\":\"low\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "All tasks and 50% completion",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('four tasks, two completed', function () { var page = pm.response.json(); pm.expect(page.matched_tasks).to.eql(4); pm.expect(page.summary.total_tasks).to.eql(4); pm.expect(page.summary.completed_tasks).to.eql(2); pm.expect(page.summary.completion_percentage).to.eql(50); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Combined pending AND high filter",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks?status=pending&priority=high&limit=1&offset=0",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('one match, whole-list summary', function () { var page = pm.response.json(); pm.expect(page.items.length).to.eql(1); pm.expect(page.matched_tasks).to.eql(1); pm.expect(page.summary.total_tasks).to.eql(4); pm.expect(page.summary.completed_tasks).to.eql(2); pm.expect(page.summary.completion_percentage).to.eql(50); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Completed-only filter",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks?status=completed",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('two matches', function () { pm.expect(pm.response.json().matched_tasks).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "High-priority beyond-end page",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks?priority=high&offset=100",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('empty page, accurate summary', function () { var page = pm.response.json(); pm.expect(page.items).to.eql([]); pm.expect(page.matched_tasks).to.eql(3); pm.expect(page.summary.completion_percentage).to.eql(50); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Huge list offset",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists?offset=1000000000000000000000000000000",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('list count, empty page', function () { var page = pm.response.json(); pm.expect(page.items).to.eql([]); pm.expect(page.total).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Huge task offset",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks?offset=1000000000000000000000000000000",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('task count, empty page', function () { var page = pm.response.json(); pm.expect(page.items).to.eql([]); pm.expect(page.matched_tasks).to.eql(4); pm.expect(page.summary.completion_percentage).to.eql(50); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Complete pending task",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"completed\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Completion increases to 75%",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('75 percent', function () { pm.expect(pm.response.json().summary.completion_percentage).to.eql(75); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reopen task to pending",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"pending\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Completion returns to 50%",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('50 percent', function () { pm.expect(pm.response.json().summary.completion_percentage).to.eql(50); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 Secure — carried defect regressions",
+      "description": "Checks NUL text, field-level 422 errors, unknown/repeated query rejection and generated OpenAPI. Huge offsets were checked in folder 04.",
+      "item": [
+        {
+          "name": "NUL list name rejected",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"bad\\u0000name\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.name', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.name'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "NUL task title rejected",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"bad\\u0000title\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.title', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.title'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Null task title identifies field",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.title', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.title'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Blank list name rejected",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"   \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.name', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.name'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Oversized task title rejected",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.title', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.title'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Client cannot choose owner",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Bad owner\",\"owner_id\":\"{{outsider_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.owner_id', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.owner_id'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Repeated status filter rejected",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks?status=pending&status=completed",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Unknown query parameter rejected",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists?unexpected=1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Generated OpenAPI collection queries",
+          "request": {
+            "method": "GET",
+            "url": "{{origin}}/openapi.json",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "With docs disabled, expect 404. Set ENABLE_API_DOCS=true and recreate the API to check parameter parity on a 200 response."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('docs are hidden or enabled explicitly', function () { pm.expect([200,404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { pm.test('collection query parameters', function () { var paths = pm.response.json().paths; var listNames = paths['/api/v1/task-lists'].get.parameters.map(function (parameter) { return parameter.name; }); var taskNames = paths['/api/v1/task-lists/{list_id}/tasks'].get.parameters.map(function (parameter) { return parameter.name; }); pm.expect(listNames).to.include.members(['limit','offset']); pm.expect(taskNames).to.include.members(['limit','offset','status','priority']); }); }"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 Secure — authorization and visible resources",
+      "description": "Owner/member/outsider visibility and authentication-before-validation. Member has not yet accepted an invitation.",
+      "item": [
+        {
+          "name": "No token cannot read list",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Authentication header indicates bearer scheme', function () { pm.expect(pm.response.headers.get('WWW-Authenticate')).to.eql('Bearer'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Invalid token cannot read list",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid-token",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Outsider cannot read known list",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Member cannot read before invitation",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Outsider list page is empty",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('visible resources only', function () { var page = pm.response.json(); pm.expect(page.total).to.eql(0); pm.expect(page.items).to.eql([]); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Missing credentials precede invalid body",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Authenticated invalid body is 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Malformed list UUID is 422",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/not-a-uuid",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Missing list UUID is 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/11111111-1111-4111-8111-111111111111",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 Secure — invitations and assignments",
+      "description": "Owner invites Member; wrong recipient cannot accept; Member joins and becomes eligible. Assignment create/PATCH, no-op, replace, clear and invalid targets are checked.",
+      "item": [
+        {
+          "name": "Owner invites member",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"recipient_email\":\"{{member_email}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"member_invitation_id\", savedResponse.id);",
+                  "  pm.collectionVariables.set(\"member_invitation_token\", savedResponse.acceptance_token);",
+                  "}",
+                  "pm.test('simulated one-time invitation', function () { var invitation = pm.response.json(); pm.expect(invitation.simulation.status).to.eql('simulated'); pm.expect(invitation.acceptance_token).to.be.a('string').and.not.empty; pm.expect(invitation.recipient_email).to.eql(pm.collectionVariables.get('member_email')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Owner inspection omits token",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{member_invitation_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no token or verifier', function () { var invitation = pm.response.json(); pm.expect(invitation).to.not.have.property('acceptance_token'); pm.expect(invitation).to.not.have.property('token_hash'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Outsider cannot inspect invitation",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{member_invitation_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Wrong recipient cannot accept",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{member_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Member accepts invitation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{member_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('membership committed', function () { var membership = pm.response.json(); pm.expect(membership.list_id).to.eql(pm.collectionVariables.get('main_list_id')); pm.expect(membership.user_id).to.eql(pm.collectionVariables.get('member_id')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Accepted-token retry is safe",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{member_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Member can now read list",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Participants are owner and member",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/participants",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('two eligible participants', function () { var page = pm.response.json(); pm.expect(page.total).to.eql(2); pm.expect(page.items.map(function (item) { return item.id; })).to.include.members([pm.collectionVariables.get('owner_id'),pm.collectionVariables.get('member_id')]); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Member creates assigned task",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Member assigned work\",\"assignee_id\":\"{{member_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"member_assigned_task_id\", savedResponse.id);",
+                  "}",
+                  "pm.test('assignee on create', function () { pm.expect(pm.response.json().assignee_id).to.eql(pm.collectionVariables.get('member_id')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Capture summary before assignment PATCH",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('five tasks, two completed', function () { var summary = pm.response.json().summary; pm.expect(summary.total_tasks).to.eql(5); pm.expect(summary.completed_tasks).to.eql(2); pm.collectionVariables.set('summary_before_assignment',summary.completion_percentage); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assign pending task to member",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"{{member_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"assignment_updated_at\", savedResponse.updated_at);",
+                  "}",
+                  "pm.test('member assigned, status unchanged', function () { var task = pm.response.json(); pm.expect(task.assignee_id).to.eql(pm.collectionVariables.get('member_id')); pm.expect(task.status).to.eql('pending'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Same assignee is a no-op",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"{{member_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('unchanged timestamp', function () { pm.expect(pm.response.json().updated_at).to.eql(pm.collectionVariables.get('assignment_updated_at')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Replace assignee with owner",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"{{owner_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('owner assigned', function () { pm.expect(pm.response.json().assignee_id).to.eql(pm.collectionVariables.get('owner_id')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Clear assignment",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('unassigned', function () { pm.expect(pm.response.json().assignee_id).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assign member again before removal",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"{{member_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Outsider cannot be assigned",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"{{outsider_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.assignee_id', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.assignee_id'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Malformed assignee UUID rejected",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assignee_id\":\"not-a-uuid\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.response.to.have.status(422); });",
+                  "pm.test('field body.assignee_id', function () { var details = pm.response.json().details; pm.expect(details.some(function (detail) { return detail.field === 'body.assignee_id'; })).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Assignment does not change completion",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('same summary', function () { pm.expect(pm.response.json().summary.completion_percentage).to.eql(Number(pm.collectionVariables.get('summary_before_assignment'))); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08 Secure — removal and invitation lifecycle",
+      "description": "Owner removal clears assignments. Accepted tokens cannot restore removed access. Resend rotates credentials; revoke is idempotent and terminal.",
+      "item": [
+        {
+          "name": "Member cannot edit list metadata",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Forbidden edit\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Member cannot invite",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"recipient_email\":\"{{outsider_email}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Owner removes member",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/participants/{{member_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Removed member cleared from pending_task_id",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('assignment cleared', function () { pm.expect(pm.response.json().assignee_id).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Removed member cleared from member_assigned_task_id",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{member_assigned_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('assignment cleared', function () { pm.expect(pm.response.json().assignee_id).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Removed member loses list access",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Old accepted token cannot rejoin",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{member_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{member_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Owner invites outsider",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"recipient_email\":\"{{outsider_email}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"second_invitation_id\", savedResponse.id);",
+                  "  pm.collectionVariables.set(\"old_invitation_token\", savedResponse.acceptance_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Resend rotates invitation token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{second_invitation_id}}/resend",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"new_invitation_token\", savedResponse.acceptance_token);",
+                  "}",
+                  "pm.test('token rotated', function () { pm.expect(pm.response.json().acceptance_token).to.not.eql(pm.collectionVariables.get('old_invitation_token')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Old rotated token invalid",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{old_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Later invitation read omits token",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{second_invitation_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no token on later read', function () { pm.expect(pm.response.json()).to.not.have.property('acceptance_token'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Owner revokes invitation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{second_invitation_id}}/revoke",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var savedResponse = pm.response.json();",
+                  "  pm.collectionVariables.set(\"revoked_at\", savedResponse.revoked_at);",
+                  "}",
+                  "pm.test('revoked', function () { pm.expect(pm.response.json().status).to.eql('revoked'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Repeated revoke idempotent",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations/{{second_invitation_id}}/revoke",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('same revoked timestamp', function () { pm.expect(pm.response.json().revoked_at).to.eql(pm.collectionVariables.get('revoked_at')); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Revoked token cannot be accepted",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/invitations/accept",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acceptance_token\":\"{{new_invitation_token}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Invitation page hides tokens",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no token leakage', function () { pm.response.json().items.forEach(function (invitation) { pm.expect(invitation).to.not.have.property('acceptance_token'); pm.expect(invitation).to.not.have.property('token_hash'); }); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Can invite unregistered email",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"recipient_email\":\"unregistered.{{owner_id}}@example.com\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('simulated only', function () { pm.expect(pm.response.json().simulation.status).to.eql('simulated'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "09 Cleanup — cascade and final visibility",
+      "description": "Deletes only the two lists created by this collection. Demo accounts remain in the isolated manual database volume.",
+      "item": [
+        {
+          "name": "Delete main list and children",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleted list missing",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleted child task missing",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists/{{main_list_id}}/tasks/{{pending_task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete empty second list",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/task-lists/{{other_list_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Owner list page empty",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/task-lists",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{owner_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('collection-created lists removed', function () { var page = pm.response.json(); pm.expect(page.total).to.eql(0); pm.expect(page.items).to.eql([]); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

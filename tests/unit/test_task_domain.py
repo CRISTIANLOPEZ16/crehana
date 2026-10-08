@@ -69,3 +69,42 @@ def test_task_unchanged_update_preserves_timestamp() -> None:
 def test_task_rejects_invalid_title(title: str) -> None:
     with pytest.raises(InvalidRequest):
         Task.create(uuid4(), title)
+
+
+@pytest.mark.parametrize("title", ["bad\x00title"])
+def test_task_rejects_unpersistable_title(title: str) -> None:
+    with pytest.raises(InvalidRequest) as error:
+        Task.create(uuid4(), title)
+    assert error.value.violations[0].field == "title"
+
+
+def test_task_rejects_unpersistable_description_without_mutating() -> None:
+    with pytest.raises(InvalidRequest):
+        Task.create(uuid4(), "Valid", "bad\x00description")
+    task = Task.create(uuid4(), "Valid", "Keep")
+    original_updated_at = task.updated_at
+    with pytest.raises(InvalidRequest):
+        task.update(None, "bad\x00description", True, None, None)
+    assert task.description == "Keep"
+    assert task.updated_at == original_updated_at
+
+
+def test_assignment_create_replace_clear_and_no_op_timestamp_rules() -> None:
+    owner_id = uuid4()
+    member_id = uuid4()
+    task = Task.create(uuid4(), "Assigned", assignee_id=owner_id)
+    assert task.assignee_id == owner_id
+    original_updated_at = task.updated_at
+
+    assert not task.update(None, None, False, None, None, owner_id, True)
+    assert task.updated_at == original_updated_at
+    assert task.update(None, None, False, None, None, member_id, True)
+    assert task.assignee_id == member_id
+    assert task.status is TaskStatus.PENDING
+    assigned_updated_at = task.updated_at
+    assert task.update(None, None, False, None, None, None, True)
+    assert task.assignee_id is None
+    assert task.updated_at > assigned_updated_at
+    cleared_updated_at = task.updated_at
+    assert not task.update(None, None, False, None, None, None, True)
+    assert task.updated_at == cleared_updated_at

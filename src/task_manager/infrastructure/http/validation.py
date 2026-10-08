@@ -26,8 +26,8 @@ def validate_query(request: Request, allowed: set[str]) -> dict[str, str]:
 
 
 def pagination_query(values: dict[str, str]) -> PaginationQuery:
-    limit = _integer_query(values, "limit", 20)
-    offset = _integer_query(values, "offset", 0)
+    limit: int = _integer_query(values, "limit", 20)
+    offset: int = _integer_query(values, "offset", 0)
     violations: list[FieldViolation] = []
     if not 1 <= limit <= 100:
         violations.append(FieldViolation("query.limit", "Must be between 1 and 100."))
@@ -39,7 +39,7 @@ def pagination_query(values: dict[str, str]) -> PaginationQuery:
 
 
 def _integer_query(values: dict[str, str], name: str, default: int) -> int:
-    value = values.get(name)
+    value: str | None = values.get(name)
     if value is None:
         return default
     if not _INTEGER_PATTERN.fullmatch(value):

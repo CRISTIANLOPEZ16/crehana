@@ -12,6 +12,7 @@ from task_manager.application.task_lists.operations import (
 from task_manager.application.task_lists.queries import GetTaskListUseCase
 from task_manager.infrastructure.persistence.database import create_unit_of_work_factory
 from tests.integration.concurrency_support import wait_for_database_lock
+from tests.fixtures.identities import TEST_OWNER_ID
 
 pytestmark = pytest.mark.integration
 
@@ -21,20 +22,22 @@ def test_concurrent_list_updates_preserve_unrelated_fields(
 ) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
     task_list = CreateTaskListUseCase(factory).execute(
-        CreateTaskList("Before", "Before description")
+        CreateTaskList("Before", TEST_OWNER_ID, "Before description")
     )
     start_together = Barrier(3)
 
     def update_name() -> None:
         start_together.wait(timeout=5)
         UpdateTaskListUseCase(factory).execute(
-            task_list.id, UpdateTaskList(name="After")
+            task_list.id, TEST_OWNER_ID, UpdateTaskList(name="After")
         )
 
     def update_description() -> None:
         start_together.wait(timeout=5)
         UpdateTaskListUseCase(factory).execute(
-            task_list.id, UpdateTaskList(description="After description")
+            task_list.id,
+            TEST_OWNER_ID,
+            UpdateTaskList(description="After description"),
         )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -44,7 +47,7 @@ def test_concurrent_list_updates_preserve_unrelated_fields(
         name_update.result(timeout=10)
         description_update.result(timeout=10)
 
-    retrieved = GetTaskListUseCase(factory).execute(task_list.id)
+    retrieved = GetTaskListUseCase(factory).execute(task_list.id, TEST_OWNER_ID)
     assert retrieved.name == "After"
     assert retrieved.description == "After description"
 
@@ -53,7 +56,9 @@ def test_supplied_unchanged_value_wins_after_waiting_for_row_lock(
     postgres_engine: Engine,
 ) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Original"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Original", TEST_OWNER_ID)
+    )
     connection = postgres_engine.connect()
     transaction = connection.begin()
     connection.execute(
@@ -69,7 +74,7 @@ def test_supplied_unchanged_value_wins_after_waiting_for_row_lock(
     def apply_explicit_value() -> None:
         worker_started.set()
         UpdateTaskListUseCase(factory).execute(
-            task_list.id, UpdateTaskList(name="Original")
+            task_list.id, TEST_OWNER_ID, UpdateTaskList(name="Original")
         )
 
     try:
@@ -84,4 +89,7 @@ def test_supplied_unchanged_value_wins_after_waiting_for_row_lock(
             transaction.rollback()
         connection.close()
 
-    assert GetTaskListUseCase(factory).execute(task_list.id).name == "Original"
+    assert (
+        GetTaskListUseCase(factory).execute(task_list.id, TEST_OWNER_ID).name
+        == "Original"
+    )

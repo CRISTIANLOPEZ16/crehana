@@ -49,6 +49,7 @@ class TaskRecord(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     priority: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    assignee_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -64,6 +65,7 @@ class TaskRecord(Base):
             description=self.description,
             status=TaskStatus(self.status),
             priority=TaskPriority(self.priority),
+            assignee_id=self.assignee_id,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )

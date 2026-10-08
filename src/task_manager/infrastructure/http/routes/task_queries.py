@@ -1,52 +1,50 @@
 from uuid import UUID
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from task_manager.application.commands import QueryTasks
-from task_manager.application.errors import InvalidRequest
 from task_manager.application.tasks.queries import QueryTasksUseCase
-from task_manager.domain.errors import FieldViolation
+from task_manager.application.ports import TaskPage
 from task_manager.domain.task import TaskPriority, TaskStatus
 from task_manager.infrastructure.http.support import (
     RESOURCE_RESPONSES,
     task_response,
     unit_of_work_factory,
 )
-from task_manager.infrastructure.http.validation import pagination_query, validate_query
+from task_manager.infrastructure.http.validation import validate_query
 from task_manager.infrastructure.http.schemas.common import TaskQuery
 from task_manager.infrastructure.http.schemas.task import (
     CompletionSummaryResponse,
     TaskPageResponse,
 )
+from task_manager.domain.user import User
+from task_manager.infrastructure.http.security import get_current_user
 
 router = APIRouter(prefix="/api/v1/task-lists/{list_id}/tasks")
 
 
 @router.get("", response_model=TaskPageResponse, responses=RESOURCE_RESPONSES)
-def query_tasks(list_id: UUID, request: Request) -> TaskPageResponse:
-    values = validate_query(request, {"status", "priority", "limit", "offset"})
-    pagination = pagination_query(values)
-    task_query = TaskQuery(limit=pagination.limit, offset=pagination.offset)
-    try:
-        status = TaskStatus(values["status"]) if "status" in values else None
-    except ValueError as exception:
-        raise InvalidRequest(
-            [FieldViolation("query.status", "Unsupported status value.")]
-        ) from exception
-    try:
-        priority = TaskPriority(values["priority"]) if "priority" in values else None
-    except ValueError as exception:
-        raise InvalidRequest(
-            [FieldViolation("query.priority", "Unsupported priority value.")]
-        ) from exception
-    page = QueryTasksUseCase(unit_of_work_factory(request)).execute(
+def query_tasks(
+    list_id: UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    status: TaskStatus | None = None,
+    priority: TaskPriority | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> TaskPageResponse:
+    validate_query(request, {"status", "priority", "limit", "offset"})
+    task_query: TaskQuery = TaskQuery(limit=limit, offset=offset)
+    page: TaskPage = QueryTasksUseCase(unit_of_work_factory(request)).execute(
         QueryTasks(
             list_id=list_id,
             status=status,
             priority=priority,
             limit=task_query.limit,
             offset=task_query.offset,
-        )
+        ),
+        current_user.id,
     )
     return TaskPageResponse(
         items=[task_response(task) for task in page.items],

@@ -20,6 +20,7 @@ from task_manager.application.tasks.queries import QueryTasksUseCase
 from task_manager.application.tasks.update import UpdateTaskUseCase
 from task_manager.domain.task import TaskStatus
 from task_manager.infrastructure.persistence.database import create_unit_of_work_factory
+from tests.fixtures.identities import TEST_OWNER_ID
 
 pytestmark = pytest.mark.integration
 
@@ -29,13 +30,14 @@ def test_query_snapshot_survives_concurrent_status_change_and_delete(
 ) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
     task_list = CreateTaskListUseCase(factory).execute(
-        CreateTaskList("Changing snapshot")
+        CreateTaskList("Changing snapshot", TEST_OWNER_ID)
     )
     pending_task = CreateTaskUseCase(factory).execute(
-        CreateTask(task_list.id, "Pending", status=TaskStatus.PENDING)
+        CreateTask(task_list.id, "Pending", status=TaskStatus.PENDING), TEST_OWNER_ID
     )
     completed_task = CreateTaskUseCase(factory).execute(
-        CreateTask(task_list.id, "Completed", status=TaskStatus.COMPLETED)
+        CreateTask(task_list.id, "Completed", status=TaskStatus.COMPLETED),
+        TEST_OWNER_ID,
     )
     interleaved = False
 
@@ -52,15 +54,18 @@ def test_query_snapshot_survives_concurrent_status_change_and_delete(
                     UpdateTaskUseCase(factory).execute(
                         task_list.id,
                         pending_task.id,
+                        TEST_OWNER_ID,
                         UpdateTask(status=TaskStatus.COMPLETED),
                     )
-                    DeleteTaskUseCase(factory).execute(task_list.id, completed_task.id)
+                    DeleteTaskUseCase(factory).execute(
+                        task_list.id, completed_task.id, TEST_OWNER_ID
+                    )
                 yield unit_of_work
 
         return create_unit_of_work()
 
     first_snapshot = QueryTasksUseCase(interleaving_factory).execute(
-        QueryTasks(task_list.id)
+        QueryTasks(task_list.id), TEST_OWNER_ID
     )
     assert first_snapshot.summary.total_tasks == 2
     assert first_snapshot.summary.completed_tasks == 1
@@ -69,7 +74,9 @@ def test_query_snapshot_survives_concurrent_status_change_and_delete(
         completed_task.id,
     }
 
-    next_snapshot = QueryTasksUseCase(factory).execute(QueryTasks(task_list.id))
+    next_snapshot = QueryTasksUseCase(factory).execute(
+        QueryTasks(task_list.id), TEST_OWNER_ID
+    )
     assert next_snapshot.summary.total_tasks == 1
     assert next_snapshot.summary.completed_tasks == 1
     assert [task.id for task in next_snapshot.items] == [pending_task.id]

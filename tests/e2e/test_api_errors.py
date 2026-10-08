@@ -12,6 +12,7 @@ def test_request_failures_have_safe_error_envelopes(api_client: httpx.Client) ->
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
     assert response.json()["details"]
+    assert response.json()["details"][0]["field"] == "body.name"
     missing_id = "11111111-1111-4111-8111-111111111111"
     assert api_client.get(f"/api/v1/task-lists/{missing_id}").status_code == 404
     assert api_client.get(f"/api/v1/task-lists/{missing_id}/tasks").status_code == 404
@@ -65,7 +66,7 @@ def test_task_text_enums_and_immutable_fields(api_client: httpx.Client) -> None:
         ).status_code
         == 404
     )
-    invalid_tasks = (
+    invalid_tasks: tuple[dict[str, object], ...] = (
         {"title": " \u3000 "},
         {"title": "x" * 201},
         {"title": "Valid", "description": "x" * 2001},
@@ -87,7 +88,7 @@ def test_task_text_enums_and_immutable_fields(api_client: httpx.Client) -> None:
         api_client.patch(task_path, json={"description": None}).json()["description"]
         is None
     )
-    invalid_updates = (
+    invalid_updates: tuple[dict[str, object], ...] = (
         {"title": None},
         {"status": None},
         {"priority": None},
@@ -98,3 +99,55 @@ def test_task_text_enums_and_immutable_fields(api_client: httpx.Client) -> None:
     for request_body in invalid_updates:
         assert api_client.patch(task_path, json=request_body).status_code == 422
     assert api_client.get(f"{collection}/not-a-uuid").status_code == 422
+
+
+def test_unpersistable_text_and_empty_updates_are_rejected_without_writes(
+    api_client: httpx.Client,
+) -> None:
+    created_list = api_client.post(
+        "/api/v1/task-lists", json={"name": "NUL validation", "description": "Keep"}
+    ).json()
+    list_id: str = created_list["id"]
+    create_response = api_client.post(
+        "/api/v1/task-lists", json={"name": "bad\u0000name"}
+    )
+    assert create_response.status_code == 422
+    assert create_response.json()["details"][0]["field"] == "body.name"
+    bad_list_description = api_client.post(
+        "/api/v1/task-lists",
+        json={"name": "No NUL", "description": "bad\u0000description"},
+    )
+    assert bad_list_description.status_code == 422
+    assert bad_list_description.json()["details"][0]["field"] == "body.description"
+    assert api_client.get("/api/v1/task-lists").json()["total"] == 1
+
+    task_response = api_client.post(
+        f"/api/v1/task-lists/{list_id}/tasks",
+        json={"title": "Keep", "description": "Description"},
+    )
+    task_id: str = task_response.json()["id"]
+    task_path = f"/api/v1/task-lists/{list_id}/tasks/{task_id}"
+    bad_patch = api_client.patch(task_path, json={"title": "bad\u0000title"})
+    assert bad_patch.status_code == 422
+    assert bad_patch.json()["details"][0]["field"] == "body.title"
+    bad_description_patch = api_client.patch(
+        task_path, json={"description": "bad\u0000description"}
+    )
+    assert bad_description_patch.status_code == 422
+    assert bad_description_patch.json()["details"][0]["field"] == "body.description"
+    unchanged = api_client.get(task_path).json()
+    assert unchanged["title"] == "Keep"
+    assert unchanged["updated_at"] == task_response.json()["updated_at"]
+    bad_create = api_client.post(
+        f"/api/v1/task-lists/{list_id}/tasks",
+        json={"title": "NUL create", "description": "bad\u0000description"},
+    )
+    assert bad_create.status_code == 422
+    assert bad_create.json()["details"][0]["field"] == "body.description"
+    assert (
+        api_client.get(f"/api/v1/task-lists/{list_id}/tasks").json()["matched_tasks"]
+        == 1
+    )
+    empty_patch = api_client.patch(task_path, json={})
+    assert empty_patch.status_code == 422
+    assert empty_patch.json()["details"][0]["field"] == "body"

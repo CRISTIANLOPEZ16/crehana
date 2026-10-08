@@ -15,6 +15,7 @@ class TaskResponse(StrictSchema):
     description: str | None
     status: TaskStatus
     priority: TaskPriority
+    assignee_id: UUID | None
     created_at: datetime
     updated_at: datetime
 

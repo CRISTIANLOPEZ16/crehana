@@ -29,6 +29,10 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      JWT_ISSUER: ${JWT_ISSUER:-task-manager}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-task-manager-api}
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
     ports:
       - "8000:8000"
     depends_on:

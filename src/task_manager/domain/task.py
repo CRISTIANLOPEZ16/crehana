@@ -33,6 +33,7 @@ class Task:
     description: str | None
     status: TaskStatus
     priority: TaskPriority
+    assignee_id: UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -44,10 +45,13 @@ class Task:
         description: str | None = None,
         status: TaskStatus = TaskStatus.PENDING,
         priority: TaskPriority = TaskPriority.MEDIUM,
+        assignee_id: UUID | None = None,
     ) -> Task:
-        normalized_title = normalize_required_text(title, "title", 200)
-        normalized_description = normalize_description(description, "description", 2000)
-        created_at = initial_timestamp()
+        normalized_title: str = normalize_required_text(title, "title", 200)
+        normalized_description: str | None = normalize_description(
+            description, "description", 2000
+        )
+        created_at: datetime = initial_timestamp()
         return cls(
             id=uuid4(),
             list_id=list_id,
@@ -55,6 +59,7 @@ class Task:
             description=normalized_description,
             status=status,
             priority=priority,
+            assignee_id=assignee_id,
             created_at=created_at,
             updated_at=created_at,
         )
@@ -66,16 +71,18 @@ class Task:
         has_description: bool,
         status: TaskStatus | None,
         priority: TaskPriority | None,
+        assignee_id: UUID | None = None,
+        has_assignee: bool = False,
     ) -> bool:
-        normalized_title = (
+        normalized_title: str | None = (
             normalize_required_text(title, "title", 200) if title is not None else None
         )
-        normalized_description = (
+        normalized_description: str | None = (
             normalize_description(description, "description", 2000)
             if has_description
             else None
         )
-        changed = False
+        changed: bool = False
         if normalized_title is not None and normalized_title != self.title:
             self.title = normalized_title
             changed = True
@@ -87,6 +94,9 @@ class Task:
             changed = True
         if priority is not None and priority != self.priority:
             self.priority = priority
+            changed = True
+        if has_assignee and assignee_id != self.assignee_id:
+            self.assignee_id = assignee_id
             changed = True
         if changed:
             self.updated_at = changed_timestamp(self.updated_at)

@@ -3,6 +3,8 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.engine import Row
+from sqlalchemy.sql.elements import ColumnElement
 
 from task_manager.application.errors import ResourceNotFound
 from task_manager.application.ports import CompletionSummary, TaskPage
@@ -29,36 +31,40 @@ class SQLAlchemyTaskQueryStore:
             is None
         ):
             raise ResourceNotFound("Task list not found.")
-        filters = [TaskRecord.list_id == list_id]
+        filters: list[ColumnElement[bool]] = [TaskRecord.list_id == list_id]
         if status is not None:
             filters.append(TaskRecord.status == status)
         if priority is not None:
             filters.append(TaskRecord.priority == priority)
-        matched_tasks = int(
+        matched_tasks: int = int(
             self._session.scalar(
                 select(func.count()).select_from(TaskRecord).where(*filters)
             )
             or 0
         )
-        total_tasks, completed_tasks = self._session.execute(
+        count_row: Row[int, int] = self._session.execute(
             select(
                 func.count(TaskRecord.id),
                 func.count(TaskRecord.id).filter(TaskRecord.status == "completed"),
             ).where(TaskRecord.list_id == list_id)
         ).one()
-        total_count = int(total_tasks or 0)
-        completed_count = int(completed_tasks or 0)
-        percentage = self._completion_percentage(total_count, completed_count)
-        records = list(
-            self._session.scalars(
-                select(TaskRecord)
-                .where(*filters)
-                .order_by(TaskRecord.created_at, TaskRecord.id)
-                .limit(limit)
-                .offset(offset)
+        total_count: int = int(count_row[0] or 0)
+        completed_count: int = int(count_row[1] or 0)
+        percentage: Decimal = self._completion_percentage(total_count, completed_count)
+        records: list[TaskRecord] = []
+        if offset < matched_tasks:
+            records = list(
+                self._session.scalars(
+                    select(TaskRecord)
+                    .where(*filters)
+                    .order_by(TaskRecord.created_at, TaskRecord.id)
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
+        summary: CompletionSummary = CompletionSummary(
+            total_count, completed_count, percentage
         )
-        summary = CompletionSummary(total_count, completed_count, percentage)
         return TaskPage(
             [record.to_domain() for record in records],
             matched_tasks,

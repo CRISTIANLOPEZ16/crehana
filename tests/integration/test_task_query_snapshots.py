@@ -17,6 +17,7 @@ from task_manager.application.tasks.operations import CreateTaskUseCase
 from task_manager.application.tasks.queries import QueryTasksUseCase
 from task_manager.domain.task import TaskStatus
 from task_manager.infrastructure.persistence.database import create_unit_of_work_factory
+from tests.fixtures.identities import TEST_OWNER_ID
 
 pytestmark = pytest.mark.integration
 
@@ -26,10 +27,11 @@ def test_collection_read_uses_one_repeatable_read_snapshot(
 ) -> None:
     regular_factory = create_unit_of_work_factory(postgres_engine)
     task_list = CreateTaskListUseCase(regular_factory).execute(
-        CreateTaskList("Snapshot")
+        CreateTaskList("Snapshot", TEST_OWNER_ID)
     )
     CreateTaskUseCase(regular_factory).execute(
-        CreateTask(task_list.id, "Before snapshot", status=TaskStatus.PENDING)
+        CreateTask(task_list.id, "Before snapshot", status=TaskStatus.PENDING),
+        TEST_OWNER_ID,
     )
     inserted_during_read = False
 
@@ -66,10 +68,12 @@ def test_collection_read_uses_one_repeatable_read_snapshot(
         return create_unit_of_work()
 
     query = QueryTasksUseCase(interleaving_factory)
-    first_snapshot = query.execute(QueryTasks(task_list.id))
+    first_snapshot = query.execute(QueryTasks(task_list.id), TEST_OWNER_ID)
     assert first_snapshot.summary.total_tasks == 1
     assert first_snapshot.summary.completed_tasks == 0
 
-    next_snapshot = QueryTasksUseCase(regular_factory).execute(QueryTasks(task_list.id))
+    next_snapshot = QueryTasksUseCase(regular_factory).execute(
+        QueryTasks(task_list.id), TEST_OWNER_ID
+    )
     assert next_snapshot.summary.total_tasks == 2
     assert next_snapshot.summary.completed_tasks == 1

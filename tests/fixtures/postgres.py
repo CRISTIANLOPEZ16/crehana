@@ -9,9 +9,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import Engine, create_engine, text
 
+from tests.fixtures.identities import TEST_OWNER_ID
+
 
 @pytest.fixture
-def postgres_schema() -> Iterator[tuple[str, str]]:
+def postgres_schema(request: pytest.FixtureRequest) -> Iterator[tuple[str, str]]:
     test_database_url = os.environ.get("TEST_DATABASE_URL", "")
     if not test_database_url.startswith("postgresql+psycopg://"):
         pytest.skip("TEST_DATABASE_URL must point to the dedicated PostgreSQL test DB.")
@@ -32,8 +34,12 @@ def postgres_schema() -> Iterator[tuple[str, str]]:
         environment = os.environ.copy()
         environment["DATABASE_URL"] = test_database_url
         environment["DATABASE_SCHEMA"] = schema_name
+        requested_revision: object = getattr(request, "param", "head")
+        if not isinstance(requested_revision, str):
+            pytest.fail("The requested Alembic revision must be a string.")
+        target_revision: str = requested_revision
         migration_result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", target_revision],
             check=True,
             env=environment,
             capture_output=True,
@@ -55,6 +61,18 @@ def postgres_schema() -> Iterator[tuple[str, str]]:
                 f"migration output: {migration_result.stdout} "
                 f"{migration_result.stderr}"
             )
+        if "users" in table_names:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'SET LOCAL search_path TO "{schema_name}"'))
+                connection.execute(
+                    text(
+                        "INSERT INTO users "
+                        "(id,display_name,email,password_hash,created_at,updated_at) "
+                        "VALUES (:id,'Test owner','owner@example.test','test-hash',"
+                        "now(),now())"
+                    ),
+                    {"id": TEST_OWNER_ID},
+                )
         yield test_database_url, schema_name
     finally:
         with admin_engine.begin() as connection:

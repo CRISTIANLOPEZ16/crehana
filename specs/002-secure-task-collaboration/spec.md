@@ -469,7 +469,7 @@ from an unknown credential (404). Invalid credentials, wrong recipient and delet
 return the same safe not-found outcome. Once verifier and recipient match, expired/revoked
 returns invitation_conflict409. Accepted invitations are checked as terminal before expiry:
 a retry returns the existing membership200 without changing accepted_at, regardless of the
-old pending deadline, if membership still exists. Without membership it returns409 and cannot
+old pending deadline, if membership still exists. Without membership it returns 409 and cannot
 restore access. Pending valid acceptance with preexisting membership records acceptance and
 returns that membership without duplication. Removing a member does not revoke other pending
 invitations; a later valid invitation can grant new membership. Owner controls revocation.
@@ -529,7 +529,7 @@ or stored token verifier. Acceptance result identifies list_id,user_id,membershi
 All paginated endpoints reject unknown/repeated query keys, preserve arbitrarily large valid
 offsets, and compute items/counts from one consistent snapshot. Participants sort by account
 created_at then user ID; invitations by invitation created_at then ID; list/task order remains
-unchanged. Empty collections and beyond-end pages return200 with accurate totals. Invitation
+unchanged. Empty collections and beyond-end pages return 200 with accurate totals. Invitation
 pages have no filters. No-body endpoints reject unexpected bodies/queries with safe422.
 
 Example registration (illustrative password, not a bootstrap credential):
@@ -666,7 +666,7 @@ required; these extend them. Concurrency checks use deterministic coordination, 
 | AS-009 / FR-019 | Same canonical email with case/whitespace/IDNA variants | Register sequentially and concurrently | Exactly one account; subsequent/conflicting requests409; no hash exposure; unit+integration+E2E |
 | AS-010 / FR-019 | Distinct dot/plus-tag addresses and invalid international local parts | Register | Dot/plus differences remain distinct; unsupported local part/malformed emails422; no DNS dependency; unit+E2E |
 | AS-011 / FR-007,019 | Passwords of lengths14/15/128/129 and Unicode/whitespace | Register/login | 15–128 accepted subject to valid Unicode; boundaries outside rejected; exact whitespace preserved; no truncation/normalization; unit+E2E |
-| AS-012 / FR-019,020 | Missing/null/nonstring/unknown/system fields | Register or login | Safe field422; no account created; form/JSON mismatch not silently accepted; E2E |
+| AS-012 / FR-019,020 | Missing/null/nonstring/unknown/system fields | Register or login | Safe field-level 422; no account created; form/JSON mismatch not silently accepted; E2E |
 | AS-013 / FR-020 | Registered and unknown emails | Login with correct and wrong password | Correct form login200/bearer/1800; unknown and wrong password indistinguishable401; no credentials in logs/responses; unit+E2E |
 | AS-014 / FR-008,021 | Missing, malformed, expired or tampered Bearer credentials | Call each protected operation | 401 with WWW-Authenticate: Bearer and existing safe envelope; zero mutations; E2E |
 | AS-015 / FR-008 | Token with none/other algorithm, missing/wrong claims, invalid issuer/audience, non-UUID/nonexistent subject | Authenticate | 401, never algorithm selected from header alone; unit+E2E |

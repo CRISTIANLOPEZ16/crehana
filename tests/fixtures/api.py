@@ -7,13 +7,30 @@ from time import monotonic, sleep
 from collections.abc import Iterator
 
 import httpx
+import jwt
 import pytest
+from datetime import UTC, datetime, timedelta
+
+from tests.fixtures.identities import TEST_OWNER_ID
+
+TEST_SIGNING_KEY = "test-only-signing-key-for-authentication-tests-0123456789abcdef"
 
 
 class RunningApi:
-    def __init__(self, database_url: str, schema_name: str) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        schema_name: str,
+        settings: dict[str, str] | None = None,
+    ) -> None:
         self.database_url = database_url
         self.schema_name = schema_name
+        self.settings = settings or {
+            "JWT_SIGNING_KEY": TEST_SIGNING_KEY,
+            "JWT_ISSUER": "task-manager-tests",
+            "JWT_AUDIENCE": "task-manager-test-clients",
+            "ENABLE_API_DOCS": "false",
+        }
         with socket.socket() as port_probe:
             port_probe.bind(("127.0.0.1", 0))
             self.port = port_probe.getsockname()[1]
@@ -27,6 +44,7 @@ class RunningApi:
         environment = os.environ.copy()
         environment["DATABASE_URL"] = self.database_url
         environment["DATABASE_SCHEMA"] = self.schema_name
+        environment.update(self.settings)
         self.process = subprocess.Popen(
             [
                 sys.executable,
@@ -49,6 +67,19 @@ class RunningApi:
                 pytest.fail("The isolated API process exited before becoming ready.")
             try:
                 if self.client.get("/health").status_code == 200:
+                    now: datetime = datetime.now(UTC)
+                    test_token: str = jwt.encode(
+                        {
+                            "sub": str(TEST_OWNER_ID),
+                            "iat": now,
+                            "exp": now + timedelta(minutes=30),
+                            "iss": self.settings["JWT_ISSUER"],
+                            "aud": self.settings["JWT_AUDIENCE"],
+                        },
+                        self.settings["JWT_SIGNING_KEY"],
+                        algorithm="HS256",
+                    )
+                    self.client.headers["Authorization"] = f"Bearer {test_token}"
                     return
             except httpx.HTTPError:
                 sleep(0.05)

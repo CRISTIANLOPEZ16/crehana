@@ -31,6 +31,9 @@ def test_query_use_case_delegates_filters_pagination_and_summary() -> None:
     task_query_store.query.return_value = expected_page
     unit_of_work = Mock(spec=UnitOfWork)
     unit_of_work.task_queries = task_query_store
+    memberships = Mock()
+    memberships.has_access.return_value = True
+    unit_of_work.memberships = memberships
     snapshot_values: list[bool] = []
 
     def unit_of_work_factory(
@@ -46,7 +49,8 @@ def test_query_use_case_delegates_filters_pagination_and_summary() -> None:
             priority=TaskPriority.HIGH,
             limit=3,
             offset=1,
-        )
+        ),
+        uuid4(),
     )
 
     assert result is expected_page

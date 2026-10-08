@@ -1,6 +1,7 @@
 from uuid import UUID
+from typing import Annotated
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from task_manager.application.commands import (
     UNSET,
@@ -21,14 +22,23 @@ from task_manager.infrastructure.http.schemas.task_list import (
     TaskListResponse,
     UpdateTaskListRequest,
 )
+from task_manager.domain.user import User
+from task_manager.domain.task_list import TaskList
+from task_manager.infrastructure.http.security import get_current_user
 
 router = APIRouter(prefix="/api/v1/task-lists")
 
 
 @router.get("/{list_id}", response_model=TaskListResponse, responses=RESOURCE_RESPONSES)
-def get_task_list(list_id: UUID, request: Request) -> TaskListResponse:
+def get_task_list(
+    list_id: UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> TaskListResponse:
     validate_query(request, set())
-    task_list = GetTaskListUseCase(unit_of_work_factory(request)).execute(list_id)
+    task_list: TaskList = GetTaskListUseCase(unit_of_work_factory(request)).execute(
+        list_id, current_user.id
+    )
     return task_list_response(task_list)
 
 
@@ -38,23 +48,32 @@ def get_task_list(list_id: UUID, request: Request) -> TaskListResponse:
     responses=RESOURCE_RESPONSES,
 )
 def update_task_list(
-    list_id: UUID, body: UpdateTaskListRequest, request: Request
+    list_id: UUID,
+    body: UpdateTaskListRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> TaskListResponse:
     validate_query(request, set())
-    command = UpdateTaskList(
+    command: UpdateTaskList = UpdateTaskList(
         name=body.name if "name" in body.model_fields_set else UNSET,
         description=(
             body.description if "description" in body.model_fields_set else UNSET
         ),
     )
-    task_list = UpdateTaskListUseCase(unit_of_work_factory(request)).execute(
-        list_id, command
+    task_list: TaskList = UpdateTaskListUseCase(unit_of_work_factory(request)).execute(
+        list_id, current_user.id, command
     )
     return task_list_response(task_list)
 
 
 @router.delete("/{list_id}", status_code=204, responses=RESOURCE_RESPONSES)
-def delete_task_list(list_id: UUID, request: Request) -> Response:
+def delete_task_list(
+    list_id: UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
     validate_query(request, set())
-    DeleteTaskListUseCase(unit_of_work_factory(request)).execute(list_id)
+    DeleteTaskListUseCase(unit_of_work_factory(request)).execute(
+        list_id, current_user.id
+    )
     return Response(status_code=204)

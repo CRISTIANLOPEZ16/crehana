@@ -16,6 +16,8 @@ def test_health_through_running_uvicorn_process() -> None:
         port = probe.getsockname()[1]
     environment = os.environ.copy()
     environment["PYTHONPATH"] = "src"
+    environment.pop("DATABASE_URL", None)
+    environment.pop("DATABASE_SCHEMA", None)
     process = subprocess.Popen(
         [
             sys.executable,

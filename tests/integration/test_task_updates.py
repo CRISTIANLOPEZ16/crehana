@@ -10,6 +10,7 @@ from task_manager.application.tasks.operations import CreateTaskUseCase
 from task_manager.application.tasks.queries import GetTaskUseCase
 from task_manager.application.tasks.update import UpdateTaskUseCase
 from task_manager.infrastructure.persistence.database import create_unit_of_work_factory
+from tests.fixtures.identities import TEST_OWNER_ID
 from tests.integration.concurrency_support import wait_for_database_lock
 
 pytestmark = pytest.mark.integration
@@ -19,22 +20,27 @@ def test_concurrent_task_updates_preserve_unrelated_fields(
     postgres_engine: Engine,
 ) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Parent"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Parent", TEST_OWNER_ID)
+    )
     task = CreateTaskUseCase(factory).execute(
-        CreateTask(task_list.id, "Before", "Before description")
+        CreateTask(task_list.id, "Before", "Before description"), TEST_OWNER_ID
     )
     start_together = Barrier(3)
 
     def update_title() -> None:
         start_together.wait(timeout=5)
         UpdateTaskUseCase(factory).execute(
-            task_list.id, task.id, UpdateTask(title="After")
+            task_list.id, task.id, TEST_OWNER_ID, UpdateTask(title="After")
         )
 
     def update_description() -> None:
         start_together.wait(timeout=5)
         UpdateTaskUseCase(factory).execute(
-            task_list.id, task.id, UpdateTask(description="After description")
+            task_list.id,
+            task.id,
+            TEST_OWNER_ID,
+            UpdateTask(description="After description"),
         )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -44,7 +50,7 @@ def test_concurrent_task_updates_preserve_unrelated_fields(
         title_update.result(timeout=10)
         description_update.result(timeout=10)
 
-    retrieved = GetTaskUseCase(factory).execute(task_list.id, task.id)
+    retrieved = GetTaskUseCase(factory).execute(task_list.id, task.id, TEST_OWNER_ID)
     assert retrieved.title == "After"
     assert retrieved.description == "After description"
 
@@ -53,9 +59,11 @@ def test_supplied_task_value_wins_after_waiting_for_row_lock(
     postgres_engine: Engine,
 ) -> None:
     factory = create_unit_of_work_factory(postgres_engine)
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Parent"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Parent", TEST_OWNER_ID)
+    )
     task = CreateTaskUseCase(factory).execute(
-        CreateTask(task_list.id, "Original", "Keep")
+        CreateTask(task_list.id, "Original", "Keep"), TEST_OWNER_ID
     )
     connection = postgres_engine.connect()
     transaction = connection.begin()
@@ -72,7 +80,7 @@ def test_supplied_task_value_wins_after_waiting_for_row_lock(
     def apply_explicit_value() -> None:
         worker_started.set()
         UpdateTaskUseCase(factory).execute(
-            task_list.id, task.id, UpdateTask(title="Original")
+            task_list.id, task.id, TEST_OWNER_ID, UpdateTask(title="Original")
         )
 
     try:
@@ -87,6 +95,6 @@ def test_supplied_task_value_wins_after_waiting_for_row_lock(
             transaction.rollback()
         connection.close()
 
-    retrieved = GetTaskUseCase(factory).execute(task_list.id, task.id)
+    retrieved = GetTaskUseCase(factory).execute(task_list.id, task.id, TEST_OWNER_ID)
     assert retrieved.title == "Original"
     assert retrieved.description == "Keep"

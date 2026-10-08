@@ -14,6 +14,7 @@ from task_manager.application.task_lists.operations import (
 )
 from task_manager.application.task_lists.queries import GetTaskListUseCase
 from task_manager.domain.task_list import TaskList
+from tests.fixtures.identities import TEST_OWNER_ID
 
 pytestmark = pytest.mark.unit
 
@@ -24,7 +25,9 @@ def test_create_use_case_commits_before_returning() -> None:
     unit_of_work.task_lists = store
     factory = cast(UnitOfWorkFactory, lambda _: nullcontext(unit_of_work))
 
-    task_list = CreateTaskListUseCase(factory).execute(CreateTaskList("Planning"))
+    task_list = CreateTaskListUseCase(factory).execute(
+        CreateTaskList("Planning", TEST_OWNER_ID)
+    )
 
     store.create.assert_called_once_with(task_list)
     unit_of_work.commit.assert_called_once_with()
@@ -39,12 +42,12 @@ def test_get_use_case_returns_missing_resource_failure() -> None:
 
     with pytest.raises(ResourceNotFound):
         GetTaskListUseCase(factory).execute(
-            UUID("11111111-1111-4111-8111-111111111111")
+            UUID("11111111-1111-4111-8111-111111111111"), TEST_OWNER_ID
         )
 
 
 def test_update_use_case_preserves_omission_and_commits_changes() -> None:
-    task_list = TaskList.create("Old", "Keep")
+    task_list = TaskList.create("Old", TEST_OWNER_ID, "Keep")
     store = Mock(spec=TaskListStore)
     store.get_for_update.return_value = task_list
     unit_of_work = Mock(spec=UnitOfWork)
@@ -52,7 +55,7 @@ def test_update_use_case_preserves_omission_and_commits_changes() -> None:
     factory = cast(UnitOfWorkFactory, lambda _: nullcontext(unit_of_work))
 
     updated = UpdateTaskListUseCase(factory).execute(
-        task_list.id, UpdateTaskList(description=UNSET, name="New")
+        task_list.id, TEST_OWNER_ID, UpdateTaskList(description=UNSET, name="New")
     )
 
     assert updated.name == "New"
